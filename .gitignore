@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Model binaries and caches — never commit weights
+models/cache/
+models/*.gguf
+models/*.bin
+models/*.safetensors
+*.gguf
+huggingface_cache/
+
+# Go
+services/**/bin/
+services/**/*.exe
+
+# Environment / secrets
+.env
+.env.*
+
+# OS
+.DS_Store
+
+# Editors
+.idea/
+.vscode/

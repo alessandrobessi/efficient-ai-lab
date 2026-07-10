@@ -1,0 +1,51 @@
+{
+  "experiment": {
+    "id": "1.3",
+    "title": "Output Length",
+    "date": "2026-07-10",
+    "hypothesis": "Total latency grows approximately linearly with the number of tokens generated, since each additional token costs one more constant-time decode step; TTFT (a one-time prefill cost) should stay roughly constant across output lengths since the prompt is fixed."
+  },
+  "hardware": {
+    "machine": "Mac.Home",
+    "cpu": "Apple M4",
+    "cores": 10,
+    "threads": 10,
+    "ram_gb": 16.0
+  },
+  "software": {
+    "os": "Darwin 24.6.0",
+    "python": "3.14.2",
+    "torch": "2.13.0",
+    "transformers": "5.13.0"
+  },
+  "model": {
+    "name": "Qwen/Qwen2.5-1.5B-Instruct",
+    "parameters": "1.5B",
+    "format": "safetensors (Hugging Face Transformers)",
+    "quantization": "none (fp32)"
+  },
+  "inference": {
+    "threads": 10,
+    "context_size": null,
+    "batch_size": 1,
+    "temperature": 0.0,
+    "seed": 42,
+    "fixed_prompt": true
+  },
+  "measurement": {
+    "repetitions": 5,
+    "warmup_runs": 0,
+    "metrics": [
+      "ttft_s",
+      "decode_time_s",
+      "total_time_s",
+      "decode_tokens_per_s"
+    ],
+    "output_lengths_tokens": [
+      16,
+      64,
+      256,
+      512
+    ]
+  }
+}

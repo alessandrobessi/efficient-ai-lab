@@ -1,0 +1,31 @@
+model_id: "Qwen/Qwen2.5-1.5B-Instruct"
+device: "cpu"
+dtype: "float32"
+seed: 42
+
+# Fixed prompt used by Experiment 1.1 (loading time) and Experiment 1.3 (output length).
+base_prompt: >
+  Explain, in a few sentences, why running a language model on a CPU has
+  different performance characteristics from running it on a GPU.
+
+# Filler text repeated/truncated to build the prompts of controlled length for
+# Experiment 1.2. Long enough and varied enough to avoid degenerate repetition
+# effects on attention.
+prompt_length_filler: >
+  Efficient AI systems research investigates how small language models behave under
+  strict compute constraints. It considers tokenization, embeddings, transformer
+  blocks, self-attention, feed-forward layers, key-value caching, and the difference
+  between prefill and decode. It also considers CPU architecture, memory bandwidth,
+  quantization, and the tradeoffs between model quality and inference performance.
+
+experiment_1_1:
+  repetitions: 10
+
+experiment_1_2:
+  prompt_lengths_tokens: [32, 128, 512, 1024, 2048]
+  max_new_tokens: 64
+  repetitions: 5
+
+experiment_1_3:
+  output_lengths_tokens: [16, 64, 256, 512]
+  repetitions: 5

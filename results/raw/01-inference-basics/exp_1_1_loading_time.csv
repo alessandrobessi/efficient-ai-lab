@@ -1,0 +1,11 @@
+run,model_id,load_time_s,mem_before_mb,mem_after_mb,mem_delta_mb
+1,Qwen/Qwen2.5-1.5B-Instruct,4.7441,321.91,236.5,-85.41
+2,Qwen/Qwen2.5-1.5B-Instruct,3.2246,444.62,451.67,7.05
+3,Qwen/Qwen2.5-1.5B-Instruct,3.2045,480.23,391.91,-88.33
+4,Qwen/Qwen2.5-1.5B-Instruct,2.8322,517.56,591.98,74.42
+5,Qwen/Qwen2.5-1.5B-Instruct,2.9503,338.56,410.34,71.78
+6,Qwen/Qwen2.5-1.5B-Instruct,3.1085,413.22,622.61,209.39
+7,Qwen/Qwen2.5-1.5B-Instruct,2.7998,580.41,491.75,-88.66
+8,Qwen/Qwen2.5-1.5B-Instruct,3.1289,334.77,528.94,194.17
+9,Qwen/Qwen2.5-1.5B-Instruct,2.9431,677.53,883.77,206.23
+10,Qwen/Qwen2.5-1.5B-Instruct,3.2016,501.53,607.64,106.11
