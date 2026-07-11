@@ -195,3 +195,8 @@ at a sustained thermal limit. This directly anticipates Week 3 Experiment 3.4
 - Now that llama.cpp is built and measured directly, how do llama-server's HTTP-level
   latencies compare to these CLI-level numbers? (Relevant when building the Week 7 Go
   gateway on top of llama-server.)
+
+This week also **answered** one of Week 1's open questions (Exp 2.1: Python vs
+llama.cpp) and **partially answered** another (Exp 2.2: thread scaling). All of these
+are tracked, alongside every other week's, in
+[`docs/methodology/open-questions.md`](../../docs/methodology/open-questions.md).

@@ -185,3 +185,6 @@ after prefill has already happened, so it cannot affect TTFT.
 - Does the roughly-linear total-latency-vs-output-length relationship hold at much
   longer output lengths (e.g. 2048+ tokens), or does something change (thermal
   throttling, memory pressure)? (Touches Week 3, Experiment 3.4.)
+
+These are tracked, along with every other week's, in
+[`docs/methodology/open-questions.md`](../../docs/methodology/open-questions.md).

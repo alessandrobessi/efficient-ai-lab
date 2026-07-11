@@ -101,6 +101,7 @@ efficient-ai-lab/
 ├── Makefile                      common commands (setup, run, lint, test)
 │
 ├── docs/                         architecture notes, methodology, hardware specs, ADRs
+│   └── methodology/open-questions.md   running register of open questions across weeks
 ├── experiments/                  one directory per week, each self-contained (§6)
 ├── evaluation/                   shared model-evaluation framework (from Week 4 onward)
 ├── services/                     Go inference gateway and load generator (from Week 7)
@@ -138,7 +139,10 @@ letting each experiment stay self-contained in terms of code.
 
 Every experiment README answers the same eleven questions (research question,
 motivation, hypothesis, setup, controlled variables, changed variables, metrics,
-results, interpretation, limitations, new questions) — see `FULL-ROADMAP.md` §6.
+results, interpretation, limitations, new questions) — see `FULL-ROADMAP.md` §6. The
+"new questions" from every week are aggregated in
+[`docs/methodology/open-questions.md`](docs/methodology/open-questions.md) and tracked
+until a later week answers them.
 
 ## 7. Results Pipeline
 
