@@ -1,0 +1,33 @@
+# GGUF equivalent of the Week 1 model (experiments/01-inference-basics), F16 —
+# no quantization, so Experiment 2.1 isolates the engine variable (Python vs
+# llama.cpp) rather than mixing in a quantization change too.
+gguf_path: "models/gguf/qwen2.5-1.5b-instruct-fp16.gguf"
+
+llama_cli_bin: "vendor/llama.cpp/build/bin/llama-cli"
+llama_bench_bin: "vendor/llama.cpp/build/bin/llama-bench"
+
+# Same prompt used in Week 1 (experiments/01-inference-basics/config/model.yaml
+# base_prompt), so Experiment 2.1 is a like-for-like match against that week's
+# Python baseline.
+prompt: >
+  Explain, in a few sentences, why running a language model on a CPU has
+  different performance characteristics from running it on a GPU.
+
+# Physical core count on the benchmark machine (Apple M4, 10 physical cores) —
+# matches the thread count Week 1 pinned for its Python baseline.
+threads: 10
+
+experiment_2_1:
+  max_new_tokens: 64
+  repetitions: 10
+
+experiment_2_2:
+  n_prompt: 512
+  n_gen: 128
+  thread_counts: [1, 2, 4, 8, 10]
+  repetitions: 5
+
+experiment_2_3:
+  n_prompt: 512
+  n_gen: 128
+  repetitions: 25

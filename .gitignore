@@ -17,6 +17,10 @@ huggingface_cache/
 services/**/bin/
 services/**/*.exe
 
+# Third-party source/build artifacts (e.g. llama.cpp) — cloned and built by
+# experiments/02-llama-cpp/scripts/setup_llama_cpp.sh, never committed
+vendor/
+
 # Environment / secrets
 .env
 .env.*
@@ -27,3 +31,6 @@ services/**/*.exe
 # Editors
 .idea/
 .vscode/
+
+# Local Claude Code tooling config (not project content)
+.claude/

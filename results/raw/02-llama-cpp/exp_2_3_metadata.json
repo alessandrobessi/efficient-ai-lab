@@ -1,0 +1,20 @@
+{
+  "experiment": {
+    "id": "2.3",
+    "title": "Repeatability",
+    "date": "2026-07-11",
+    "hypothesis": "Run-to-run variance is small (single-digit percent coefficient of variation) once the OS file cache is warm, and the first independent invocation is measurably slower than subsequent ones."
+  },
+  "inference": {
+    "n_prompt": 512,
+    "n_gen": 128,
+    "threads": 10,
+    "warmup": false
+  },
+  "measurement": {
+    "repetitions": 25,
+    "metrics": [
+      "tokens_per_s per independent run"
+    ]
+  }
+}

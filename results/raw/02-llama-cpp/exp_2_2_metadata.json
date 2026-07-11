@@ -1,0 +1,26 @@
+{
+  "experiment": {
+    "id": "2.2",
+    "title": "Thread Count",
+    "date": "2026-07-11",
+    "hypothesis": "Both prefill (pp) and decode (tg) throughput increase with thread count up to the physical core count (10), with diminishing returns as threading overhead and memory bandwidth contention start to dominate."
+  },
+  "inference": {
+    "n_prompt": 512,
+    "n_gen": 128,
+    "thread_counts": [
+      1,
+      2,
+      4,
+      8,
+      10
+    ]
+  },
+  "measurement": {
+    "repetitions": 5,
+    "metrics": [
+      "avg_ts (tokens/s)",
+      "stddev_ts"
+    ]
+  }
+}

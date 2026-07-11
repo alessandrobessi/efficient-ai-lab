@@ -1,0 +1,28 @@
+{
+  "experiment": {
+    "id": "2.1",
+    "title": "Python vs llama.cpp",
+    "date": "2026-07-11",
+    "hypothesis": "llama.cpp achieves higher decode throughput and lower peak memory than the Hugging Face Transformers baseline for the same model, since it's a purpose-built CPU inference engine (quantized kernels, no Python/autograd overhead) vs a general-purpose training/inference framework running eagerly in fp32."
+  },
+  "model": {
+    "name": "Qwen/Qwen2.5-1.5B-Instruct",
+    "gguf": "models/gguf/qwen2.5-1.5b-instruct-fp16.gguf",
+    "quantization": "F16 (llama.cpp) vs fp32 (Python)"
+  },
+  "inference": {
+    "threads": 10,
+    "max_new_tokens": 64,
+    "prompt_tokens": 56
+  },
+  "measurement": {
+    "repetitions": 10,
+    "metrics": [
+      "load_time_s",
+      "ttft_s",
+      "decode_time_s",
+      "peak_rss_mb",
+      "decode_tokens_per_s"
+    ]
+  }
+}
