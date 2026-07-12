@@ -1,0 +1,45 @@
+# Local reproducible environment: llama-server (official image) + the Go
+# inference gateway in front of it. Run from the repo root:
+#
+#   docker compose -f infrastructure/docker/docker-compose.yml up --build
+#
+# Requires a GGUF model already downloaded to models/gguf/ (see models/README.md
+# and any experiments/*/scripts/download_*.sh) — mounted read-only into the
+# llama-server container.
+services:
+  llama-server:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    command:
+      - "-m"
+      - "/models/${GATEWAY_MODEL_FILE:-qwen2.5-1.5b-instruct-q4_k_m.gguf}"
+      - "-t"
+      - "2"
+      - "-c"
+      - "2048"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8799"
+    volumes:
+      - ../../models/gguf:/models:ro
+    ports:
+      - "8799:8799"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8799/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  inference-gateway:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/inference-gateway.Dockerfile
+    environment:
+      GATEWAY_PORT: "8080"
+      LLAMA_SERVER_URL: "http://llama-server:8799"
+      LOG_LEVEL: "info"
+    ports:
+      - "8080:8080"
+    depends_on:
+      llama-server:
+        condition: service_healthy
