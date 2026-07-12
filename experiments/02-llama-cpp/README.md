@@ -2,6 +2,10 @@
 
 **Phase I — Understand CPU Inference** (Weeks 1–3)
 
+> New to this week's vocabulary (GGUF, memory-mapped loading, quantization, BLAS,
+> Metal, ...)? See the
+> [Week 2 glossary](../../docs/methodology/glossary.md#week-2--llamacpp-and-gguf).
+
 ## 1. What question are we investigating?
 
 How does a purpose-built CPU inference engine (llama.cpp, running a GGUF model)

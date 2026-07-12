@@ -6,3 +6,5 @@ decisions for the evaluation framework (Week 4+).
 
 - [`open-questions.md`](open-questions.md) — running register of the "new questions"
   raised at the end of each week's experiment README, tracked until answered.
+- [`glossary.md`](glossary.md) — plain-English explanations of each week's technical
+  terms, sectioned by week.

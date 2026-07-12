@@ -2,6 +2,9 @@
 
 **Phase I — Understand CPU Inference** (Weeks 1–3)
 
+> New to this week's vocabulary (tokenization, KV cache, prefill/decode, TTFT, ...)?
+> See the [Week 1 glossary](../../docs/methodology/glossary.md#week-1--transformer-inference-fundamentals).
+
 ## 1. What question are we investigating?
 
 What actually happens, performance-wise, when a Small Language Model runs inference on

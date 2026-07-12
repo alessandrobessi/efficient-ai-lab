@@ -101,7 +101,8 @@ efficient-ai-lab/
 ├── Makefile                      common commands (setup, run, lint, test)
 │
 ├── docs/                         architecture notes, methodology, hardware specs, ADRs
-│   └── methodology/open-questions.md   running register of open questions across weeks
+│   ├── methodology/open-questions.md   running register of open questions across weeks
+│   └── methodology/glossary.md         plain-English glossary of terms, sectioned by week
 ├── experiments/                  one directory per week, each self-contained (§6)
 ├── evaluation/                   shared model-evaluation framework (from Week 4 onward)
 ├── services/                     Go inference gateway and load generator (from Week 7)

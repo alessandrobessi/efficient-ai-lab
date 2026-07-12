@@ -2,6 +2,10 @@
 
 **Phase I — Understand CPU Inference** (Weeks 1–3) — final week of the phase.
 
+> New to this week's vocabulary (P-core/E-core, SIMD, memory bandwidth, thermal
+> throttling, ...)? See the
+> [Week 3 glossary](../../docs/methodology/glossary.md#week-3--cpu-performance-engineering).
+
 ## 1. What question are we investigating?
 
 What determines CPU inference performance beyond raw FLOPs: how does thread count
