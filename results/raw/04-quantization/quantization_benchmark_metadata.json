@@ -1,0 +1,30 @@
+{
+  "experiment": {
+    "id": "4.1-4.4",
+    "title": "Quantization Benchmark (Size, Memory, Loading, Inference)",
+    "date": "2026-07-12",
+    "hypothesis": "Disk size, peak memory, and load time all shrink roughly monotonically from F16 down to Q3_K_M, while decode speed increases as there is less data to move per token (memory-bandwidth-bound decode benefits from smaller weights), at some cost to quality not measured until Week 5."
+  },
+  "inference": {
+    "threads": 2,
+    "max_new_tokens": 64,
+    "quant_levels": [
+      "F16",
+      "Q8_0",
+      "Q6_K",
+      "Q5_K_M",
+      "Q4_K_M",
+      "Q3_K_M"
+    ]
+  },
+  "measurement": {
+    "repetitions": 10,
+    "metrics": [
+      "disk_size_mb",
+      "load_time_s",
+      "peak_rss_mb",
+      "ttft_s",
+      "decode_tokens_per_s"
+    ]
+  }
+}

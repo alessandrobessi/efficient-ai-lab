@@ -44,7 +44,7 @@ The program runs in four phases across 12 weeks.
 | 1 | Transformer Inference Fundamentals | ✅ Complete |
 | 2 | llama.cpp and GGUF | ✅ Complete |
 | 3 | CPU Performance Engineering | ✅ Complete |
-| 4 | Quantization Fundamentals | ⬜ Not started |
+| 4 | Quantization Fundamentals | ✅ Complete |
 | 5 | Quantization vs Quality | ⬜ Not started |
 | 6 | Small Model Comparison | ⬜ Not started |
 | 7 | Go Inference Gateway | ⬜ Not started |

@@ -210,3 +210,58 @@ investigated whether a throughput decline seen in [Week
 the evidence pointed more toward thread contention than pure thermal throttling, but
 this machine has no non-root way to directly measure temperature or clock speed to
 confirm it outright.
+
+---
+
+## Week 4 — Quantization Fundamentals
+
+**FP32 / FP16 / BF16** — three ways of storing a real number in a fixed number of
+bits. FP32 ("32-bit float") is the standard, high-precision format most models are
+originally trained in. FP16 uses half as many bits, trading some precision for a
+smaller footprint (this is what Week 2's GGUF model uses, labeled "F16" there).
+BF16 also uses 16 bits but allocates them differently, favoring the same numeric
+*range* as FP32 at the cost of more precision than FP16 — not used directly in this
+project, but a common training-time format worth knowing.
+
+**INT8 / INT4** — storing numbers as 8-bit or 4-bit integers instead of a floating
+point format, the core idea behind the more aggressive quantization levels this week
+tests (e.g. Q8_0 is built around 8-bit integers). Far smaller than FP16, but numbers
+have to be rescaled back to something like floating point before most of the actual
+math happens — see "scales," below.
+
+**Quantization error** — the gap between a number's true (e.g. FP32) value and what
+it becomes after being squeezed into a lower-precision format and converted back.
+Individually tiny, these errors accumulate across a model's billions of weights, and
+measuring their real-world impact on output quality is Week 5's job — this week only
+measures the speed/memory side of the trade.
+
+**Scales** — since a low-bit integer (e.g. INT4, which only represents 16 distinct
+values) can't directly represent the full range of a model's real-valued weights, GGUF
+quantization formats store one (or a few) floating-point "scale" values alongside each
+small block of quantized weights, and multiply by that scale to reconstruct an
+approximate real value. The scale is what lets a 4-bit number stand in for a much
+wider range of possible weight values.
+
+**Groups** (a.k.a. blocks) — quantization scales aren't applied to the whole model at
+once; weights are split into small groups (commonly 32 or 256 values), each with its
+own scale, so the reconstruction is more accurate locally than one single global
+scale could be. The "K" in formats like Q4_K_M refers to a specific, more elaborate
+grouping/scaling scheme than the plain Q4_0 format uses.
+
+**GGUF quantization formats (Q8_0, Q6_K, Q5_K_M, Q4_K_M, Q3_K_M, ...)** — each name
+encodes roughly how many bits per weight (the leading number) and which specific
+grouping/scaling scheme is used (the suffix — `_0` is the older, simpler scheme;
+`_K` variants are newer and generally give better quality per bit, which is why this
+project uses the `_K` variants where available). Despite the naming suggesting a
+simple ordering by size, [Experiment
+4.4](../../experiments/04-quantization/README.md#8-what-are-the-results) found that
+speed and memory don't scale smoothly across these formats — different block
+layouts interact differently with this CPU's optimized math instructions.
+
+**REPACK** — a llama.cpp CPU backend feature (reported as a supported capability in
+this project's build, alongside `NEON`/`DOTPROD`/`ACCELERATE`) that can rearrange
+certain quantized formats' in-memory layout at load time for faster SIMD access
+later. A plausible explanation, in [Experiment
+4.3](../../experiments/04-quantization/README.md#8-what-are-the-results), for why
+some quantization levels loaded slower than both the unquantized F16 model and the
+smallest quantized one.
