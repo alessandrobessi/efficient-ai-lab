@@ -47,9 +47,12 @@ Schema (per FULL-ROADMAP.md §8):
 
 - **This is v1, scoped to ~100 of the roadmap's target 100-200 examples** (Week 4's
   brief is "begin constructing the evaluation dataset," not necessarily finish it).
-  Extending toward 200 — more examples per category, harder/adversarial cases,
-  additional categories — is open for Week 5, when the dataset actually gets used to
-  score quantization levels' quality.
+  Week 5 used v1 as-is to score quantization levels' quality — see [its
+  README](../../experiments/05-quantization-quality/README.md#10-what-are-the-limitations)
+  for two ways v1 turned out to be too easy (a saturated `classification` category,
+  and no items designed to stress multilingual consistency specifically). Extending
+  toward 200 — more examples per category, harder/adversarial cases, additional
+  categories — remains open, now informed by those gaps.
 - **Unlike experiment results, this file is meant to be hand-edited directly** —
   it's an authored corpus, not measured data, so the "raw data is never edited by
   hand" rule (root `README.md` §7) doesn't apply here. Validate after editing:

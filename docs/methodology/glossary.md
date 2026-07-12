@@ -265,3 +265,57 @@ later. A plausible explanation, in [Experiment
 4.3](../../experiments/04-quantization/README.md#8-what-are-the-results), for why
 some quantization levels loaded slower than both the unquantized F16 model and the
 smallest quantized one.
+
+## Week 5 — Quantization vs Quality
+
+**Bootstrap confidence interval** — a way to estimate how uncertain a summary
+statistic (like a mean score) is, without assuming the data follows a particular
+distribution: repeatedly resample the observed data with replacement, recompute the
+statistic each time, and take a percentile range (e.g. 2.5th-97.5th) across the
+resampled values as the "95% CI." Used throughout [Week
+5](../../experiments/05-quantization-quality/README.md#8-what-are-the-results)
+instead of a formula-based CI because quality scores aren't normally distributed
+(many are 0/1).
+
+**Paired comparison / Cohen's dz** — since every quantization level in Week 5 is
+scored on the *same* 100 dataset examples, differences between two levels can be
+computed per-example (`score_at_Q4_K_M - score_at_F16` for each of the 100 items)
+rather than treating the two levels as independent samples — a paired design, which
+is more statistically powerful than an unpaired one at the same sample size. Cohen's
+dz is the standardized effect size for this paired setup: the mean of those
+per-example differences divided by their standard deviation. Values below ~0.2 are
+conventionally "small" — true of every quantization level tested this week.
+
+**Statistical significance ("n.s.")** — shorthand, used in [Week
+5](../../experiments/05-quantization-quality/README.md#8-what-are-the-results)'s
+results table, for "the bootstrap confidence interval on this difference includes
+zero," meaning the data can't rule out "no real difference" at the chosen confidence
+level (95% here). Not the same as "there is no difference" — only that this
+100-example benchmark isn't large enough to distinguish a small real difference from
+noise.
+
+**JSON validity** — whether a model's output, when a JSON object is expected, is
+actually syntactically parseable JSON at all — a harder, more binary failure mode
+than getting field *values* wrong (see `information_extraction`/`structured_output`
+scoring). Week 5 found this only breaks down at the most aggressive quantization
+level tested (Q3_K_M), and even then in a small minority of cases.
+
+**Instruction compliance** — whether a model followed an explicit formatting
+constraint in a prompt (e.g. "respond with only YES or NO"), tracked separately in
+Week 5's scoring from whether the underlying *content* of the answer was correct —
+a model can comply with the format and still be wrong, or ignore the format while
+still giving the right underlying answer.
+
+**Semantic similarity (lexical-overlap proxy)** — Week 5's summarization scorer
+measures token-level overlap (a bag-of-words F1, similar in spirit to ROUGE) between
+a model's output and a reference summary, used as a cheap, LLM-judge-free stand-in
+for "does this mean the same thing" — a real limitation, since a correct paraphrase
+with different wording would score poorly despite being a good summary.
+
+**Pareto frontier (quality vs. performance)** — this program's Week 5 central
+visualization: plotting each quantization level as a (speed, quality) point and
+identifying which points aren't "dominated" — i.e. no other point is both faster
+*and* higher-quality. A level *on* the frontier represents a genuine trade-off worth
+considering; a level *off* the frontier is simply a worse choice than some other
+level on both axes simultaneously, regardless of any use case's specific
+speed/quality preference.
