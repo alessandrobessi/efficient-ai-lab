@@ -46,7 +46,7 @@ The program runs in four phases across 12 weeks.
 | 3 | CPU Performance Engineering | ✅ Complete |
 | 4 | Quantization Fundamentals | ✅ Complete |
 | 5 | Quantization vs Quality | ✅ Complete |
-| 6 | Small Model Comparison | ⬜ Not started |
+| 6 | Small Model Comparison | ✅ Complete |
 | 7 | Go Inference Gateway | ⬜ Not started |
 | 8 | Load Testing and Observability | ⬜ Not started |
 | 9 | Kubernetes and Failure Engineering | ⬜ Not started |

@@ -1,0 +1,49 @@
+# 5 models spanning 4 families and a 0.5B-3.8B parameter range, all at Q4_K_M —
+# Week 4/5's speed-Pareto-optimal quantization format, held constant across models
+# per FULL-ROADMAP.md's Week 6 experimental controls ("keep ... benchmark
+# methodology ... constant" — only the model itself varies here).
+llama_cli_bin: "vendor/llama.cpp/build/bin/llama-cli"
+llama_server_bin: "vendor/llama.cpp/build/bin/llama-server"
+
+models:
+  - name: Qwen2.5-0.5B-Instruct
+    family: Qwen
+    params_b: 0.5
+    file: "models/gguf/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+  - name: Qwen2.5-1.5B-Instruct
+    family: Qwen
+    params_b: 1.5
+    file: "models/gguf/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+  - name: Llama-3.2-1B-Instruct
+    family: Llama
+    params_b: 1.24
+    file: "models/gguf/Llama-3.2-1B-Instruct-Q4_K_M.gguf"
+  - name: Gemma-2-2B-it
+    family: Gemma
+    params_b: 2.61
+    file: "models/gguf/gemma-2-2b-it-Q4_K_M.gguf"
+  - name: Phi-3.5-mini-instruct
+    family: Phi
+    params_b: 3.82
+    file: "models/gguf/Phi-3.5-mini-instruct-Q4_K_M.gguf"
+
+# Same continuity prompt as Weeks 1-4, for the speed/memory benchmark.
+prompt: >
+  Explain, in a few sentences, why running a language model on a CPU has
+  different performance characteristics from running it on a GPU.
+
+# Week 2/3's throughput-optimal thread count on this machine (4 performance cores).
+threads: 2
+ctx_size: 2048
+port: 8799
+
+benchmark:
+  max_new_tokens: 64
+  repetitions: 10
+
+dataset: "evaluation/datasets/v1.jsonl"
+
+generation:
+  temperature: 0
+  seed: 42
+  max_tokens: 256

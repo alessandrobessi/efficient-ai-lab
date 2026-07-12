@@ -319,3 +319,43 @@ identifying which points aren't "dominated" — i.e. no other point is both fast
 considering; a level *off* the frontier is simply a worse choice than some other
 level on both axes simultaneously, regardless of any use case's specific
 speed/quality preference.
+
+## Week 6 — Small Model Comparison
+
+**Model family** — a group of models released together by the same organization,
+typically sharing an architecture, tokenizer, and training recipe across different
+parameter counts (e.g. Qwen2.5-0.5B and Qwen2.5-1.5B are the same family; Llama-3.2,
+Gemma-2, and Phi-3.5 are each different families). Week 6 varies both parameter count
+*and* family simultaneously, unlike Weeks 4-5 which varied quantization level within
+one fixed model — so a quality or speed difference this week could come from either
+axis, not just size (see "confound," below).
+
+**Confound** — when two variables change together in an experiment, making it
+impossible to attribute an observed effect to either one alone. Week 6 comparing
+"1.5B Qwen" against "1.24B Llama" changes both parameter count *and* architecture at
+once, so any quality difference between them is confounded — it can't cleanly say
+"parameters caused this" versus "architecture caused this." This is a real
+limitation, not a mistake: isolating parameter count alone would require multiple
+sizes *within* every family tested, which is out of this week's scope.
+
+**Pearson correlation coefficient (r)** — a number from -1 to 1 measuring how
+linearly two variables move together (1 = perfectly together, -1 = perfectly
+opposite, 0 = no linear relationship). Week 6 uses it to ask "does parameter count
+predict quality/speed?" across the 5 tested models — but with only 5 data points, a
+strong-looking r (e.g. 0.91) is descriptive, not statistically confirmatory; a single
+unusual model can swing it substantially (see "sample size," below).
+
+**Sample size (n) and statistical power** — how many independent observations a
+statistic is computed from. Week 5's quality scores use n=100 (dataset examples) per
+model, enough for reasonably tight bootstrap confidence intervals. Week 6's
+cross-model correlations use n=5 (models), which is too small to treat a correlation
+as confirmed rather than suggestive — explicitly flagged throughout Week 6's results
+as "descriptive, not confirmatory."
+
+**Strictly dominated (model-level)** — the model-comparison analogue of a
+non-Pareto-optimal quantization level (see above): a model is strictly dominated if
+some other model tested is *both* faster and higher-quality. Week 6 found
+Llama-3.2-1B-Instruct is strictly dominated by the much smaller
+Qwen2.5-0.5B-Instruct — a concrete illustration that "dominated" doesn't require
+being the largest or most expensive option, just being beaten on every axis that
+matters by *something* in the comparison set.
