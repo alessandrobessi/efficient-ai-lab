@@ -1,0 +1,36 @@
+# Same base model and same 6 quantization levels as Week 4, now scored for quality
+# instead of just speed/memory — the GGUF files are already on disk from Week 4's
+# download_quantized_ggufs.sh, nothing new to fetch.
+llama_server_bin: "vendor/llama.cpp/build/bin/llama-server"
+
+quant_levels:
+  - name: F16
+    file: "models/gguf/qwen2.5-1.5b-instruct-fp16.gguf"
+  - name: Q8_0
+    file: "models/gguf/qwen2.5-1.5b-instruct-q8_0.gguf"
+  - name: Q6_K
+    file: "models/gguf/qwen2.5-1.5b-instruct-q6_k.gguf"
+  - name: Q5_K_M
+    file: "models/gguf/qwen2.5-1.5b-instruct-q5_k_m.gguf"
+  - name: Q4_K_M
+    file: "models/gguf/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+  - name: Q3_K_M
+    file: "models/gguf/qwen2.5-1.5b-instruct-q3_k_m.gguf"
+
+# Week 2/3's throughput-optimal thread count on this machine (4 performance cores).
+threads: 2
+ctx_size: 2048
+port: 8799
+
+dataset: "evaluation/datasets/v1.jsonl"
+
+# Deterministic decoding (temperature 0, fixed seed) so quality differences reflect
+# the quantization level, not sampling noise — a repeat run of the same level should
+# reproduce the same outputs modulo floating-point nondeterminism.
+generation:
+  temperature: 0
+  seed: 42
+  # 128 was too tight for reasoning items where the model shows its work despite
+  # being told not to (18/100 hit the cap mid-derivation in a first pass) — raised
+  # to give room for a full chain-of-thought plus final answer.
+  max_tokens: 256
