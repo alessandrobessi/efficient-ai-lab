@@ -1,0 +1,33 @@
+{
+  "experiment": {
+    "id": "3.1",
+    "title": "Thread Scaling",
+    "date": "2026-07-12",
+    "hypothesis": "Throughput increases with thread count up to roughly the performance-core count (4 on this machine), then flattens or declines as efficiency cores and scheduling overhead dominate \u2014 following up on Week 2 Exp 2.2's finding that throughput peaked at 2 threads and degraded by 8-10."
+  },
+  "hardware": {
+    "performance_cores": 4,
+    "efficiency_cores": 6
+  },
+  "inference": {
+    "n_prompt": 512,
+    "n_gen": 128,
+    "thread_counts": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      8,
+      10
+    ]
+  },
+  "measurement": {
+    "repetitions": 5,
+    "metrics": [
+      "avg_ts (tokens/s)",
+      "stddev_ts"
+    ]
+  }
+}

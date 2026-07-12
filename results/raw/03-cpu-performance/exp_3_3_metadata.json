@@ -1,0 +1,25 @@
+{
+  "experiment": {
+    "id": "3.3",
+    "title": "Background Load",
+    "date": "2026-07-12",
+    "hypothesis": "Inference throughput degrades monotonically as concurrent background CPU load increases, since background processes compete for the same physical cores llama.cpp's inference threads need."
+  },
+  "inference": {
+    "threads": 2,
+    "n_prompt": 512,
+    "n_gen": 128,
+    "background_hog_counts": [
+      0,
+      2,
+      4,
+      8
+    ]
+  },
+  "measurement": {
+    "repetitions": 5,
+    "metrics": [
+      "tokens_per_s per run per hog-count"
+    ]
+  }
+}

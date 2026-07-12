@@ -1,0 +1,44 @@
+# Same F16 GGUF as Week 2, so results are directly comparable.
+gguf_path: "models/gguf/qwen2.5-1.5b-instruct-fp16.gguf"
+
+llama_cli_bin: "vendor/llama.cpp/build/bin/llama-cli"
+llama_bench_bin: "vendor/llama.cpp/build/bin/llama-bench"
+
+# Same prompt as Weeks 1-2, for continuity.
+prompt: >
+  Explain, in a few sentences, why running a language model on a CPU has
+  different performance characteristics from running it on a GPU.
+
+# Apple M4 core layout on the benchmark machine, from
+# `sysctl hw.perflevel0.physicalcpu hw.perflevel1.physicalcpu` (no sudo needed).
+# perflevel0 = performance cores, perflevel1 = efficiency cores.
+performance_cores: 4
+efficiency_cores: 6
+
+experiment_3_1:
+  n_prompt: 512
+  n_gen: 128
+  thread_counts: [1, 2, 3, 4, 5, 6, 8, 10]
+  repetitions: 5
+
+experiment_3_2:
+  # Week 2 Experiment 2.2 found 2 threads to be the throughput-optimal
+  # configuration on this machine, unlike Weeks 1-2's default of 10 — used here and
+  # in 3.3/3.4 so this week's results reflect the machine's actual optimum.
+  threads: 2
+  max_new_tokens: 64
+  prompt_lengths_tokens: [128, 512, 1024, 2048, 4096]
+  repetitions: 5
+
+experiment_3_3:
+  threads: 2
+  n_prompt: 512
+  n_gen: 128
+  repetitions: 5
+  background_hog_counts: [0, 2, 4, 8]
+
+experiment_3_4:
+  threads: 2
+  n_prompt: 512
+  n_gen: 128
+  repetitions: 30

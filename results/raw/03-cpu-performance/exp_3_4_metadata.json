@@ -1,0 +1,21 @@
+{
+  "experiment": {
+    "id": "3.4",
+    "title": "Thermal Effects",
+    "date": "2026-07-12",
+    "hypothesis": "If Week 2 Exp 2.3's decline was mainly a thread-oversubscription artifact (10 threads on a 4P+6E core machine), throughput at the optimal 2 threads should stay much more stable across the same number of independent runs. If it still declines similarly, thermal throttling under sustained load is the better explanation."
+  },
+  "inference": {
+    "threads": 2,
+    "n_prompt": 512,
+    "n_gen": 128,
+    "warmup": false
+  },
+  "measurement": {
+    "repetitions": 30,
+    "metrics": [
+      "tokens_per_s per independent run",
+      "pmset -g therm (best-effort)"
+    ]
+  }
+}

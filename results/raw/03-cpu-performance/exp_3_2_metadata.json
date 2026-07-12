@@ -1,0 +1,27 @@
+{
+  "experiment": {
+    "id": "3.2",
+    "title": "Context Scaling",
+    "date": "2026-07-12",
+    "hypothesis": "TTFT grows with prompt length (as in Week 1 Exp 1.2), and peak memory grows with context length due to KV cache growth; decode speed should stay roughly flat if it holds up to 4096 tokens, twice as far as Week 1 tested."
+  },
+  "inference": {
+    "threads": 2,
+    "max_new_tokens": 64,
+    "prompt_lengths_tokens": [
+      128,
+      512,
+      1024,
+      2048,
+      4096
+    ]
+  },
+  "measurement": {
+    "repetitions": 5,
+    "metrics": [
+      "ttft_s",
+      "decode_tokens_per_s",
+      "peak_rss_mb"
+    ]
+  }
+}
