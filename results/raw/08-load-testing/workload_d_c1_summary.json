@@ -1,0 +1,31 @@
+{
+  "label": "workload_d_c1",
+  "mode": "closed-loop",
+  "concurrency": 1,
+  "requests_per_second": 10,
+  "duration_s": 20,
+  "max_tokens": 64,
+  "temperature": 0,
+  "target_url": "http://127.0.0.1:8080/v1/generate",
+  "timestamp": "2026-07-12T15:24:42.894713+02:00",
+  "summary": {
+    "n": 12,
+    "errors": 0,
+    "error_rate": 0,
+    "wall_clock_s": 20.439780459,
+    "throughput_rps": 0.5870904545217943,
+    "latency_p50_ms": 1660.4917500000001,
+    "latency_p95_ms": 1850.1607019,
+    "latency_p99_ms": 1938.48434038,
+    "latency_max_ms": 1960.56525,
+    "corrected_latency_p50_ms": 1660.4920204999999,
+    "corrected_latency_p95_ms": 1850.1648083,
+    "corrected_latency_p99_ms": 1938.49209526,
+    "queue_delay_p50_ms": 0.000333,
+    "queue_delay_p99_ms": 0.007759389999999999,
+    "ttft_p50_ms": 24,
+    "ttft_p95_ms": 54.99999999999997,
+    "ttft_p99_ms": 81.39999999999999,
+    "tokens_per_second_mean": 39.1647818092456
+  }
+}

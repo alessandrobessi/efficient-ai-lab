@@ -359,3 +359,48 @@ Llama-3.2-1B-Instruct is strictly dominated by the much smaller
 Qwen2.5-0.5B-Instruct — a concrete illustration that "dominated" doesn't require
 being the largest or most expensive option, just being beaten on every axis that
 matters by *something* in the comparison set.
+
+## Week 8 — Load Testing and Observability
+
+**Closed-loop load generation** — a load-testing style where each simulated client
+waits for its previous request's response before sending the next one. This is the
+literal model of "N real users, each waiting for their answer before asking the next
+question," and is what FULL-ROADMAP.md's Workloads A-D (defined by concurrency: 1,
+5, 20, and a sweep) are specified in terms of.
+
+**Open-loop load generation** — a load-testing style where requests are dispatched
+at a fixed nominal rate regardless of how long previous requests take. Models a
+population of users arriving independently of system load (e.g. a public API), which
+closed-loop generation cannot — see "coordinated omission," below, for why the
+distinction matters.
+
+**Coordinated omission** — a measurement pitfall (a term coined by Gil Tene) where a
+load generator's own dispatch mechanism silently falls behind its intended schedule
+under load, and only measures latency from *actual* send time rather than the
+*nominal* time a request should have gone out — systematically hiding exactly the
+tail-latency blowup that matters most, because the requests that would reveal a
+backlog haven't been sent yet when the measurement window closes. Week 8 makes this
+concrete with a real, deliberately-undersized open-loop run: naive latency (measured
+from actual dispatch) looked fine (p50 ≈ 3.4s) while corrected latency (measured
+from the nominal schedule) was 77.5s at p50 — see [Week
+8](../../experiments/08-load-testing/README.md#9-how-should-the-results-be-interpreted).
+
+**Percentile (p50 / p95 / p99)** — the value below which a given percentage of
+measurements fall. p50 (the median) is "typical"; p95/p99 describe the tail — the
+worst experience a meaningful fraction of requests (1-in-20, 1-in-100) actually get.
+A system can have a great p50 and a terrible p99 simultaneously, which is why Week 8
+reports all three rather than just an average.
+
+**Queueing (single-server queue)** — when work arrives faster than one server can
+process it, extra work waits in a queue rather than running in parallel. Week 8's
+llama-server runs with one processing slot (`-np 1`), so every request beyond the one
+currently running queues — directly observed via llama-server's own
+`requests_deferred` metric (peaked at 78 during the heaviest test), not just inferred
+from latency growth.
+
+**Saturation / collapse** — the point past which a system's throughput stops
+increasing (or starts decreasing) as demand keeps rising, typically accompanied by
+latency and error rate both growing sharply. Week 8 found throughput plateaus almost
+immediately (by concurrency ≈ 2), while the *error rate* collapse (0% to >60%) only
+becomes visible once queued wait time starts exceeding the request timeout, between
+concurrency 10 and 20 on this machine.

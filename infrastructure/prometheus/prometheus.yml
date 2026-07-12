@@ -1,0 +1,33 @@
+# Scrape config for Week 8's observability stack. Prometheus runs in Docker
+# (see infrastructure/docker/observability-compose.yml); the gateway,
+# llama-server, and node_exporter all run natively on the host (matching
+# every other week's convention of measuring the real machine, not a
+# Docker-Desktop-VM-emulated one) — reached via host.docker.internal.
+global:
+  scrape_interval: 2s
+  evaluation_interval: 2s
+
+scrape_configs:
+  - job_name: inference-gateway
+    static_configs:
+      - targets: ["host.docker.internal:8080"]
+        labels:
+          service: gateway
+
+  # llama-server's own Prometheus endpoint, enabled with --metrics (disabled
+  # by default) — see experiments/08-load-testing/scripts/ for the exact
+  # startup command used during this week's workload runs.
+  - job_name: llama-server
+    static_configs:
+      - targets: ["host.docker.internal:8799"]
+        labels:
+          service: llama-server
+
+  # Host-level CPU/RAM — answers FULL-ROADMAP.md's Week 8 question "does CPU
+  # usage reach 100%?" directly, which neither the gateway nor llama-server's
+  # own metrics can (both only see their own process, not the whole machine).
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["host.docker.internal:9100"]
+        labels:
+          service: host

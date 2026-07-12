@@ -73,9 +73,17 @@ Success response (200):
   "request_id": "d1af9a7dd6e51995",
   "text": " CPU inference is the process of...",
   "tokens_generated": 22,
-  "duration_ms": 391
+  "duration_ms": 391,
+  "ttft_ms": 46,
+  "tokens_per_second": 70.25
 }
 ```
+
+`duration_ms` is the full request duration as seen by the gateway (network + queue +
+generation); `ttft_ms` and `tokens_per_second` are llama-server's own prefill-time and
+decode-speed instrumentation (`timings.prompt_ms` / `timings.predicted_per_second`),
+passed through rather than re-measured — added in Week 8 so the load generator can
+report real per-request TTFT and generation speed without needing a streaming API.
 
 Error responses share one envelope shape, with `request_id` always present so a
 client can correlate a failure with gateway logs:

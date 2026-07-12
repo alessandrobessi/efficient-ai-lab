@@ -6,5 +6,7 @@ underneath.
 
 - [Inference Gateway (Week 7)](inference-gateway.md) — request flow, health vs.
   readiness, error mapping, and what's deliberately not built yet.
+- [Load Testing & Observability (Week 8)](load-testing.md) — topology, why three
+  separate metrics sources, why `-np 1`, closed-loop vs. open-loop dispatch.
 
 Kubernetes topology write-up: not started — first used in Week 9.

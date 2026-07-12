@@ -1,0 +1,2 @@
+n,errors,error_rate,wall_clock_s,throughput_rps,latency_p50_ms,latency_p95_ms,latency_p99_ms,latency_max_ms,corrected_latency_p50_ms,corrected_latency_p95_ms,corrected_latency_p99_ms,queue_delay_p50_ms,queue_delay_p99_ms,ttft_p50_ms,ttft_p95_ms,ttft_p99_ms,tokens_per_second_mean
+135,0,0,224.098004333,0.602415003211701,3395.423958,4738.0832708,4895.29554472,4947.283542,77454.684023,171536.68344219998,177536.45080744,72507.400481,175949.44727994,28,369.3,421.2,38.75461983382178

@@ -16,6 +16,7 @@ huggingface_cache/
 # Go
 services/**/bin/
 services/**/*.exe
+experiments/**/bin/
 
 # Third-party source/build artifacts (e.g. llama.cpp) — cloned and built by
 # experiments/02-llama-cpp/scripts/setup_llama_cpp.sh, never committed

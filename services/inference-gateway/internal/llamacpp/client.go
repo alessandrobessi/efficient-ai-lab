@@ -39,6 +39,16 @@ type GenerateResult struct {
 	Text            string
 	TokensPredicted int
 	TokensEvaluated int
+	// TTFT is prefill/prompt-processing time — llama-server's own
+	// instrumentation (timings.prompt_ms), the same field Week 5-6's Python
+	// evaluation pipeline reads from the OpenAI-compatible endpoint. Reusing
+	// llama-server's own measurement here, rather than timing the whole HTTP
+	// round trip in Go, is what lets the Week 8 load generator report real
+	// per-request TTFT without needing a streaming API.
+	TTFT time.Duration
+	// TokensPerSecond is llama-server's own decode-speed measurement
+	// (timings.predicted_per_second).
+	TokensPerSecond float64
 }
 
 type Client struct {
@@ -66,9 +76,15 @@ type completionRequest struct {
 }
 
 type completionResponse struct {
-	Content         string `json:"content"`
-	TokensPredicted int    `json:"tokens_predicted"`
-	TokensEvaluated int    `json:"tokens_evaluated"`
+	Content         string            `json:"content"`
+	TokensPredicted int               `json:"tokens_predicted"`
+	TokensEvaluated int               `json:"tokens_evaluated"`
+	Timings         completionTimings `json:"timings"`
+}
+
+type completionTimings struct {
+	PromptMS           float64 `json:"prompt_ms"`
+	PredictedPerSecond float64 `json:"predicted_per_second"`
 }
 
 func (c *Client) Generate(ctx context.Context, req GenerateRequest) (GenerateResult, error) {
@@ -114,6 +130,8 @@ func (c *Client) Generate(ctx context.Context, req GenerateRequest) (GenerateRes
 		Text:            parsed.Content,
 		TokensPredicted: parsed.TokensPredicted,
 		TokensEvaluated: parsed.TokensEvaluated,
+		TTFT:            time.Duration(parsed.Timings.PromptMS * float64(time.Millisecond)),
+		TokensPerSecond: parsed.Timings.PredictedPerSecond,
 	}, nil
 }
 

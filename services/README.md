@@ -8,6 +8,9 @@ Go services built in Phase III (Weeks 7–9).
   configuration, and running instructions, and
   [`docs/architecture/inference-gateway.md`](../docs/architecture/inference-gateway.md)
   for the design.
-- `load-generator/` — hand-rolled concurrent load generator (goroutines/channels) used
-  to drive the gateway and measure latency percentiles under increasing concurrency.
-  Not started — first used in Week 8.
+- [`load-generator/`](load-generator/README.md) — **built in Week 8.** Hand-rolled
+  concurrent load generator (goroutines/channels/tickers, no third-party load-testing
+  library) — closed-loop and open-loop dispatch modes, exact percentile computation,
+  a concrete coordinated-omission demonstration. See its own README for usage, and
+  [`experiments/08-load-testing/README.md`](../experiments/08-load-testing/README.md)
+  for the workload results.

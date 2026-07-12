@@ -1,0 +1,37 @@
+# Week 8 observability stack: Prometheus + Grafana, scraping the gateway,
+# llama-server, and node_exporter, all of which run natively on the host
+# (see infrastructure/prometheus/prometheus.yml for why). Run from the repo
+# root:
+#
+#   docker compose -f infrastructure/docker/observability-compose.yml up
+#
+# Prerequisites (all native, not containerized — see experiments/08-load-testing/README.md):
+#   1. llama-server running with --metrics on port 8799
+#   2. the inference gateway running on port 8080 (LLAMA_SERVER_URL=http://127.0.0.1:8799)
+#   3. vendor/node_exporter/node_exporter running on port 9100
+#
+# Grafana: http://localhost:3000 (admin/admin), dashboard auto-provisioned
+# from infrastructure/grafana/dashboards/.
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus

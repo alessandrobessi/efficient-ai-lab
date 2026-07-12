@@ -27,6 +27,7 @@ func TestGenerate_Success(t *testing.T) {
 			Content:         "hi there",
 			TokensPredicted: 3,
 			TokensEvaluated: 1,
+			Timings:         completionTimings{PromptMS: 12.5, PredictedPerSecond: 42.0},
 		})
 	}))
 	defer srv.Close()
@@ -38,6 +39,9 @@ func TestGenerate_Success(t *testing.T) {
 	}
 	if result.Text != "hi there" || result.TokensPredicted != 3 {
 		t.Fatalf("unexpected result: %+v", result)
+	}
+	if result.TTFT != 12*time.Millisecond+500*time.Microsecond || result.TokensPerSecond != 42.0 {
+		t.Fatalf("unexpected timings: TTFT=%v TokensPerSecond=%v", result.TTFT, result.TokensPerSecond)
 	}
 }
 

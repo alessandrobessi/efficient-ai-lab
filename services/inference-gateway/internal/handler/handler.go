@@ -86,10 +86,12 @@ type generateRequest struct {
 }
 
 type generateResponse struct {
-	RequestID       string `json:"request_id"`
-	Text            string `json:"text"`
-	TokensGenerated int    `json:"tokens_generated"`
-	DurationMs      int64  `json:"duration_ms"`
+	RequestID       string  `json:"request_id"`
+	Text            string  `json:"text"`
+	TokensGenerated int     `json:"tokens_generated"`
+	DurationMs      int64   `json:"duration_ms"`
+	TTFTMs          int64   `json:"ttft_ms"`
+	TokensPerSecond float64 `json:"tokens_per_second"`
 }
 
 // Generate is the gateway's one real endpoint: validate the request, call
@@ -164,6 +166,8 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 		Text:            result.Text,
 		TokensGenerated: result.TokensPredicted,
 		DurationMs:      duration.Milliseconds(),
+		TTFTMs:          result.TTFT.Milliseconds(),
+		TokensPerSecond: result.TokensPerSecond,
 	})
 }
 
