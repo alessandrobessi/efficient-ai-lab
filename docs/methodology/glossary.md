@@ -487,3 +487,18 @@ constraints does each become preferable." Week 10 answers this by pairing each
 system with the conditions under which its trade-offs actually win (e.g. CPU-SLM
 for latency-sensitive/concurrent workloads, Larger-Local for quality-sensitive
 self-hosted workloads) rather than ranking the three systems on one scale.
+
+## Week 11 — AI Architecture Decision Framework
+
+**Decision framework** — a structured set of branch points (e.g. "is the task
+constrained," "is quality sufficient") each mapped to evidence rather than
+intuition. Week 11 doesn't run new experiments — it reorganizes Weeks 1-10's
+existing results *around* these branch points instead of around calendar weeks,
+so the same data answers a different, more directly useful question ("what should
+I do") rather than "what did we measure."
+
+**Evidence gap** — a decision-framework branch this program has no experimental
+data for (e.g. retrieval-augmented generation, fine-tuning, and governance/compliance
+were never tested in Weeks 1-10). Week 11 states these plainly as gaps rather than
+filling them with generic, unverified advice — an evidence-based framework should be
+honest about where it has no evidence, not just where it does.

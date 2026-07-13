@@ -51,7 +51,7 @@ The program runs in four phases across 12 weeks.
 | 8 | Load Testing and Observability | ✅ Complete |
 | 9 | Kubernetes and Failure Engineering | ✅ Complete |
 | 10 | SLM vs LLM | ✅ Complete |
-| 11 | AI Architecture Decision Framework | ⬜ Not started |
+| 11 | AI Architecture Decision Framework | ✅ Complete |
 | 12 | Final Synthesis | ⬜ Not started |
 
 Each experiment week lives under [`experiments/`](experiments/) and follows the same
@@ -115,6 +115,7 @@ efficient-ai-lab/
 ├── reports/                       longer-form writing
 │   ├── field-notes/               short public write-ups per experiment
 │   ├── benchmarks/                phase-level benchmark reports
+│   ├── decision-framework/        Week 11's evidence-annotated architecture decision framework
 │   └── final/                     the Week 12 flagship report
 └── models/                        model download docs (binaries are never committed)
 ```
