@@ -52,7 +52,11 @@ The program runs in four phases across 12 weeks.
 | 9 | Kubernetes and Failure Engineering | ✅ Complete |
 | 10 | SLM vs LLM | ✅ Complete |
 | 11 | AI Architecture Decision Framework | ✅ Complete |
-| 12 | Final Synthesis | ⬜ Not started |
+| 12 | Final Synthesis | ✅ Complete |
+
+**The 12-week program is complete.** See the
+[flagship report](reports/final/efficient-ai-systems-report-v1.md) for the full
+synthesis.
 
 Each experiment week lives under [`experiments/`](experiments/) and follows the same
 internal structure — see [§6](#6-experiment-structure) below.
