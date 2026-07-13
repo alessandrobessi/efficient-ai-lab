@@ -2,14 +2,14 @@
 
 [![llmpace CI](https://github.com/alessandrobessi/efficient-ai-lab/actions/workflows/llmpace-ci.yml/badge.svg)](https://github.com/alessandrobessi/efficient-ai-lab/actions/workflows/llmpace-ci.yml)
 
-**Status: v0.1.0 tagged.** Builds, tests, and runs end-to-end against
-llama.cpp, OpenAI-compatible, and Ollama servers. CI on every push,
-cross-compiled release binaries for darwin/linux amd64/arm64 — see the
-[releases page](https://github.com/alessandrobessi/efficient-ai-lab/releases)
-or [`CONTRIBUTING.md`](CONTRIBUTING.md) to build from source. See
-[`ROADMAP.md`](ROADMAP.md) for the full architecture rationale and what's
-still open (a real multi-hour soak validation, a YAML multi-stage config
-file, a live Prometheus endpoint).
+**Status: [`llmpace/v0.1.0`](https://github.com/alessandrobessi/efficient-ai-lab/tree/llmpace/v0.1.0) tagged.**
+Builds, tests, and runs end-to-end against llama.cpp, OpenAI-compatible, and
+Ollama servers. CI runs on every push; cross-compilation for darwin/linux
+amd64/arm64 is verified (see [`CONTRIBUTING.md`](CONTRIBUTING.md)) but no
+downloadable pre-built binaries are published yet — build from source (below).
+See [`ROADMAP.md`](ROADMAP.md) for the full architecture rationale and
+what's still open (a real multi-hour soak validation, a YAML multi-stage
+config file, a live Prometheus endpoint).
 
 A load testing tool built specifically for LLM inference servers, correct by
 default about the one thing generic load testers routinely get wrong under
@@ -68,18 +68,11 @@ measured).
 
 ## Installation
 
-**Pre-built binary** — download the archive for your platform from the
-[releases page](https://github.com/alessandrobessi/efficient-ai-lab/releases)
-(darwin/linux, amd64/arm64), extract, and run:
-
-```bash
-tar -xzf llmpace-v0.1.0-<os>-<arch>.tar.gz
-cd llmpace-v0.1.0-<os>-<arch>
-./llmpace -version
-```
-
-**From source** — requires Go 1.23+. No third-party dependencies (stdlib
-only, per [ADR 0001](../../docs/decisions/0001-go-for-inference-gateway.md)'s
+No pre-built binaries are published yet (cross-compilation for darwin/linux
+amd64/arm64 is verified — see [`CONTRIBUTING.md`](CONTRIBUTING.md) — but
+nothing is attached to a release for download). Build from source: requires
+Go 1.23+. No third-party dependencies (stdlib only, per
+[ADR 0001](../../docs/decisions/0001-go-for-inference-gateway.md)'s
 reasoning) — `go build` needs no network access beyond fetching the Go
 toolchain itself.
 
