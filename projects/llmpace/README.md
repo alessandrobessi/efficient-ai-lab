@@ -1,11 +1,33 @@
 # llmpace
 
-**Status: planned — not yet built.** See [`ROADMAP.md`](ROADMAP.md) for the full
-development plan.
+**Status: core implemented (M0-M3), pre-release.** Builds, tests, and runs
+end-to-end against llama.cpp, OpenAI-compatible, and Ollama servers. Not yet
+packaged as a tagged release (no CI, no cross-compiled binaries,
+no `CONTRIBUTING.md`) — see [`ROADMAP.md`](ROADMAP.md) for what's left (M4).
 
 A load testing tool built specifically for LLM inference servers, correct by
 default about the one thing generic load testers routinely get wrong under
 load: **coordinated omission**.
+
+## Quickstart
+
+```bash
+cd projects/llmpace
+go build -o llmpace .
+
+# against a local llama.cpp server (llama-server), open-loop, 20 req/s, 30s:
+./llmpace -backend llamacpp -url http://127.0.0.1:8080 -rps 20 -duration 30s
+
+# write raw per-request JSONL + a summary JSON alongside it:
+./llmpace -backend llamacpp -url http://127.0.0.1:8080 -output results/run1.jsonl
+
+# OpenAI-compatible or Ollama:
+./llmpace -backend openai -url http://127.0.0.1:8000 -model my-model -rps 10 -duration 30s
+./llmpace -backend ollama -url http://127.0.0.1:11434 -model llama3 -rps 10 -duration 30s
+```
+
+Run `./llmpace -h` for every flag (mode, concurrency, max-tokens, temperature,
+CSV/Prometheus output, reservoir cap for long runs, etc).
 
 ## The problem
 

@@ -7,11 +7,14 @@ building it would be useful independently of this program. That's a different
 kind of work than an experiment, so it lives here rather than under
 `experiments/`.
 
-Both are **planned, not yet built.** Each directory below has a `README.md`
-(the pitch: what problem it solves, for whom) and a `ROADMAP.md` (the full
-phased development plan: architecture, milestones, testing strategy).
+Each directory below has a `README.md` (the pitch: what problem it solves, for
+whom, and how to run it) and a `ROADMAP.md` (the full phased development plan:
+architecture, milestones, testing strategy).
 
 ## [`llmpace/`](llmpace/) — coordinated-omission-safe LLM load testing
+
+**Core implemented (M0-M3), pre-release** — builds, tests, and runs
+end-to-end against llama.cpp, OpenAI-compatible, and Ollama servers.
 
 Generic HTTP load testers (wrk, k6, locust) don't model LLM serving semantics —
 no native time-to-first-token or inter-token-latency reporting, no streaming
@@ -21,6 +24,8 @@ get *coordinated omission* wrong in ways that specifically hide the tail latency
 that matters most under load.
 
 ## [`quantscope/`](quantscope/) — GGUF quantization / CPU-kernel-fit profiler
+
+**Planned, not yet built.**
 
 [Week 4](../experiments/04-quantization/README.md) and
 [Week 6](../experiments/06-model-comparison/README.md) repeatedly found that
