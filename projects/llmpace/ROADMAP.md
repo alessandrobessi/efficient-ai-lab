@@ -1,13 +1,15 @@
 # llmpace — Development Roadmap
 
-**Status: M0-M3 implemented.** The architecture below reflects what was
-actually built (see `internal/`), not just a plan. M4 (CI, docs polish,
-`CONTRIBUTING.md`, tagged release with cross-compiled binaries) remains.
-Two deliberate simplifications versus the original plan: the YAML
-multi-stage test-plan file (config is CLI-flags-only for now, single
-stage per run) and a live `/metrics` Prometheus endpoint (a static
-textfile-collector-format dump via `-prometheus-out` exists instead) —
-both noted inline below where they diverge.
+**Status: M0-M4 implemented — v0.1.0 tagged.** The architecture below
+reflects what was actually built (see `internal/`), not just a plan. Two
+deliberate simplifications remain from the original plan and are not
+expected to change for v0.1.x: the YAML multi-stage test-plan file (config
+is CLI-flags-only for now, single stage per run) and a live `/metrics`
+Prometheus endpoint (a static textfile-collector-format dump via
+`-prometheus-out` exists instead) — both noted inline below where they
+diverge. A real multi-hour soak run against a live backend also hasn't
+been executed (see M3's status) — the bounded-memory mechanism itself is
+unit-tested, but real-world validation at that scale is still open.
 
 ## Why this exists
 
@@ -161,7 +163,7 @@ long a run lasts. Below that many requests, the reservoir holds every value
 | **M1** | Streaming + TTFT/ITL for llama.cpp, open-loop-by-default | **Done** — `TestSender_Do_RecordsTTFTAndInterTokenGaps`, `TestLlamaCPP_StreamCountsTokensAndStopsAtStop`; verified end-to-end against a local mock SSE server |
 | **M2** | Add OpenAI-compatible and Ollama adapters | **Done** — `TestOpenAI_StreamStopsAtDoneSentinel`, `TestOllama_StreamNDJSONStopsAtDone` |
 | **M3** | CSV/Prometheus output, bounded-memory design | **Mostly done** — reservoir sampling, CSV, and Prometheus textfile output are implemented and unit-tested; a real multi-hour soak run against a live backend has not actually been executed, only the bounded-memory mechanism itself (unit tests up to 200k samples). YAML config file explicitly deferred (see note above) |
-| **M4** | Docs, CI, `CONTRIBUTING.md`, tagged `v0.1.0` with cross-compiled binaries | **Not started** |
+| **M4** | Docs, CI, `CONTRIBUTING.md`, tagged `v0.1.0` with cross-compiled binaries | **Done** — `.github/workflows/llmpace-ci.yml` (build/vet/test/gofmt on every push/PR touching `projects/llmpace/**`), `CONTRIBUTING.md`, tagged [`llmpace/v0.1.0`](https://github.com/alessandrobessi/efficient-ai-lab/releases/tag/llmpace%2Fv0.1.0) with darwin/linux amd64/arm64 binaries attached and a `-version` flag baked in via `-ldflags`. The soak-test and YAML-config gaps noted under M3 are still open — this milestone is about packaging/release infrastructure, not closing those |
 
 ## Testing strategy
 
@@ -179,9 +181,12 @@ long a run lasts. Below that many requests, the reservoir holds every value
   or hang on trailing data after it). Recorded-real traffic fixtures from an
   actual llama.cpp/Ollama server are not yet included — a reasonable M4
   addition once one is convenient to capture.
-- **No live-server tier in CI** (there is no CI yet — M4). A real end-to-end
-  run against a live inference server was done manually during development
-  (see the Quickstart in `README.md`) rather than automated.
+- **No live-server tier in CI.** `.github/workflows/llmpace-ci.yml` runs
+  `gofmt`/`go vet`/`go build`/`go test -race` on every push/PR touching
+  `projects/llmpace/**` — all against mocks and stub servers, same as the
+  local suite. A real end-to-end run against a live inference server was
+  done manually during development (see the Quickstart in `README.md`) and
+  remains a manual step, not something CI depends on.
 
 ## Explicitly deferred (documented limitation, not silently omitted)
 

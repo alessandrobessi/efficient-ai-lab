@@ -1,10 +1,15 @@
 # llmpace
 
-**Status: core implemented (M0-M3), pre-release.** Builds, tests, and runs
-end-to-end against llama.cpp, OpenAI-compatible, and Ollama servers. Not yet
-packaged as a tagged release (no CI, no cross-compiled binaries, no
-`CONTRIBUTING.md`) — see [`ROADMAP.md`](ROADMAP.md) for what's left (M4) and
-for the full architecture rationale behind everything summarized here.
+[![llmpace CI](https://github.com/alessandrobessi/efficient-ai-lab/actions/workflows/llmpace-ci.yml/badge.svg)](https://github.com/alessandrobessi/efficient-ai-lab/actions/workflows/llmpace-ci.yml)
+
+**Status: v0.1.0 tagged.** Builds, tests, and runs end-to-end against
+llama.cpp, OpenAI-compatible, and Ollama servers. CI on every push,
+cross-compiled release binaries for darwin/linux amd64/arm64 — see the
+[releases page](https://github.com/alessandrobessi/efficient-ai-lab/releases)
+or [`CONTRIBUTING.md`](CONTRIBUTING.md) to build from source. See
+[`ROADMAP.md`](ROADMAP.md) for the full architecture rationale and what's
+still open (a real multi-hour soak validation, a YAML multi-stage config
+file, a live Prometheus endpoint).
 
 A load testing tool built specifically for LLM inference servers, correct by
 default about the one thing generic load testers routinely get wrong under
@@ -63,8 +68,18 @@ measured).
 
 ## Installation
 
-Requires Go 1.23+. No third-party dependencies (stdlib only, per
-[ADR 0001](../../docs/decisions/0001-go-for-inference-gateway.md)'s
+**Pre-built binary** — download the archive for your platform from the
+[releases page](https://github.com/alessandrobessi/efficient-ai-lab/releases)
+(darwin/linux, amd64/arm64), extract, and run:
+
+```bash
+tar -xzf llmpace-v0.1.0-<os>-<arch>.tar.gz
+cd llmpace-v0.1.0-<os>-<arch>
+./llmpace -version
+```
+
+**From source** — requires Go 1.23+. No third-party dependencies (stdlib
+only, per [ADR 0001](../../docs/decisions/0001-go-for-inference-gateway.md)'s
 reasoning) — `go build` needs no network access beyond fetching the Go
 toolchain itself.
 
@@ -79,6 +94,9 @@ Or run directly without a separate build step:
 ```bash
 go run . -backend llamacpp -url http://127.0.0.1:8080 -duration 10s
 ```
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for building, testing, and
+extending llmpace (e.g. adding a new backend adapter).
 
 ## Quickstart
 
@@ -263,10 +281,14 @@ and what's planned but not yet built.
 ## Testing
 
 ```bash
-go test ./...     # all packages
+go test ./... -race    # all packages
 go vet ./...
-gofmt -l .         # should print nothing
+gofmt -l .              # should print nothing
 ```
+
+`.github/workflows/llmpace-ci.yml` runs exactly these checks on every push
+or PR touching `projects/llmpace/**`. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for the full contributor workflow.
 
 Notable tests: `internal/dispatch/dispatch_test.go`'s
 `TestRunOpenLoop_QueueDelayGrowsUnderSaturation` is the concrete behavioral
@@ -297,8 +319,8 @@ over-count on trailing data after it).
   reservoir mechanism is unit-tested up to 200k samples; a real soak run
   against a live backend hasn't been executed yet.
 
-See [`ROADMAP.md`](ROADMAP.md) for the full list of what M4 still needs (CI,
-`CONTRIBUTING.md`, tagged release, cross-compiled binaries).
+These are the genuinely open items — see [`ROADMAP.md`](ROADMAP.md) for the
+full rationale behind each.
 
 ## Relationship to this repo
 

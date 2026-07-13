@@ -231,7 +231,7 @@ real gap rather than staying a research artifact. Both live under
   load testing tool, addressing what Week 8 found firsthand: generic load
   testers don't model streaming (TTFT/inter-token latency) and are easy to get
   coordinated omission wrong on, hiding exactly the tail latency that matters
-  under load. **Core implemented (M0-M3)**, pre-release.
+  under load. **v0.1.0 tagged**, with CI and cross-compiled release binaries.
 - **[`quantscope`](projects/quantscope/)** — a GGUF quantization / CPU-kernel-fit
   profiler, addressing what Weeks 4 and 6 found repeatedly: quantization
   speed and memory don't correlate cleanly with bit-width or parameter count,

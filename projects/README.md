@@ -13,8 +13,9 @@ architecture, milestones, testing strategy).
 
 ## [`llmpace/`](llmpace/) — coordinated-omission-safe LLM load testing
 
-**Core implemented (M0-M3), pre-release** — builds, tests, and runs
-end-to-end against llama.cpp, OpenAI-compatible, and Ollama servers.
+**v0.1.0 tagged** — CI on every push, cross-compiled release binaries
+(darwin/linux, amd64/arm64), builds/tests/runs end-to-end against
+llama.cpp, OpenAI-compatible, and Ollama servers.
 
 Generic HTTP load testers (wrk, k6, locust) don't model LLM serving semantics —
 no native time-to-first-token or inter-token-latency reporting, no streaming

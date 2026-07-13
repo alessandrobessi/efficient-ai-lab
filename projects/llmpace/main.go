@@ -20,7 +20,15 @@ import (
 	"github.com/alessandrobessi/efficient-ai-lab/projects/llmpace/internal/stats"
 )
 
+// version is set at build time via -ldflags "-X main.version=vX.Y.Z" for
+// tagged releases; "dev" for local builds (go build/go run with no flags).
+var version = "dev"
+
 func main() {
+	if len(os.Args) > 1 && (os.Args[1] == "-version" || os.Args[1] == "--version") {
+		fmt.Println("llmpace " + version)
+		return
+	}
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "llmpace:", err)
 		os.Exit(1)
