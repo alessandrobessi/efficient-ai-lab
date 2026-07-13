@@ -1,0 +1,31 @@
+name: quantscope CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "projects/quantscope/**"
+      - ".github/workflows/quantscope-ci.yml"
+  pull_request:
+    paths:
+      - "projects/quantscope/**"
+      - ".github/workflows/quantscope-ci.yml"
+
+defaults:
+  run:
+    working-directory: projects/quantscope
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+      - name: uv sync
+        run: uv sync --locked
+      - name: pytest
+        run: uv run pytest -v
+      - name: uv build
+        run: uv build

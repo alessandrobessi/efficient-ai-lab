@@ -6,6 +6,7 @@ import pytest
 from quantscope.llama_bin import (
     LlamaBinError,
     run_llama_bench,
+    run_llama_perplexity,
     run_llama_quantize,
 )
 
@@ -57,3 +58,29 @@ def test_run_llama_quantize_raises_on_failure():
     with patch("subprocess.run", return_value=_completed(returncode=1, stderr="quantize failed")):
         with pytest.raises(LlamaBinError, match="quantize failed"):
             run_llama_quantize("llama-quantize", "in.gguf", "out.gguf", "Q4_K_M")
+
+
+PERPLEXITY_OUTPUT = """
+[1]4.5000,[2]5.1000,[3]5.8000
+Final estimate: PPL = 5.9070 +/- 0.03166
+"""
+
+
+def test_run_llama_perplexity_parses_final_estimate():
+    with patch("subprocess.run", return_value=_completed(stdout=PERPLEXITY_OUTPUT)) as mock_run:
+        ppl = run_llama_perplexity("llama-perplexity", "model.gguf", "wiki.test.raw")
+    assert ppl == 5.9070
+    assert mock_run.call_args.args[0][:2] == ["llama-perplexity", "-m"]
+    assert "-f" in mock_run.call_args.args[0]
+
+
+def test_run_llama_perplexity_raises_on_nonzero_exit():
+    with patch("subprocess.run", return_value=_completed(returncode=1, stderr="dataset not found")):
+        with pytest.raises(LlamaBinError, match="dataset not found"):
+            run_llama_perplexity("llama-perplexity", "model.gguf", "missing.raw")
+
+
+def test_run_llama_perplexity_raises_when_final_estimate_missing():
+    with patch("subprocess.run", return_value=_completed(stdout="no final estimate here")):
+        with pytest.raises(LlamaBinError, match="Final estimate"):
+            run_llama_perplexity("llama-perplexity", "model.gguf", "wiki.test.raw")

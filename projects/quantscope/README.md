@@ -1,10 +1,15 @@
 # quantscope
 
-**Status: core implemented, pre-release.** Installable, tested end-to-end
-(`bench`, `predict`, `quantize`, `report`, `formats`, `cpu-info` all work).
-Not yet packaged as a tagged release (no CI, no `CONTRIBUTING.md`) — see
-[`ROADMAP.md`](ROADMAP.md) for what's left and for the full architecture
-rationale behind everything summarized here.
+[![quantscope CI](https://github.com/alessandrobessi/efficient-ai-lab/actions/workflows/quantscope-ci.yml/badge.svg)](https://github.com/alessandrobessi/efficient-ai-lab/actions/workflows/quantscope-ci.yml)
+
+**Status: [`quantscope/v0.1.0`](https://github.com/alessandrobessi/efficient-ai-lab/tree/quantscope/v0.1.0) tagged.**
+Installable, tested end-to-end (`bench`, `predict`, `quantize`, `report`,
+`formats`, `cpu-info` all work, including `bench --quality-eval`). CI on
+every push; no package is published to PyPI or attached as a downloadable
+release artifact yet — install from source (below). See
+[`ROADMAP.md`](ROADMAP.md) for the full architecture rationale and what's
+still open (validation against a real llama.cpp build, a more complete CPU
+feature alias table).
 
 A CLI that answers a question this program's own research raised but never
 fully automated: **for this model, on this CPU, which GGUF quantization format
@@ -53,29 +58,40 @@ fast format for a given model+CPU pair currently means manually running
   that naive bit-width heuristics are often wrong, so quantscope doesn't
   pretend otherwise.
 - **Wraps, doesn't reimplement.** All actual benchmarking and quantization
-  goes through llama.cpp's own `llama-bench`/`llama-quantize` binaries.
+  goes through llama.cpp's own `llama-bench`/`llama-quantize`/
+  `llama-perplexity` binaries.
+- **Can add a measured quality axis, not just speed/size.** `bench
+  --quality-eval` also runs `llama-perplexity` per format, so the Pareto
+  ranking can include "what do you give up" alongside "how much faster."
 
 ## Installation
 
-Requires Python 3.11+ and a llama.cpp build (`llama-bench`/`llama-quantize`)
-on your machine somewhere — quantscope never bundles or builds llama.cpp
-itself; see `../../experiments/02-llama-cpp/scripts/setup_llama_cpp.sh` for
-one way to build it.
+No package is published yet (no PyPI, no release artifact) — install from
+source. Requires Python 3.11+ and a llama.cpp build
+(`llama-bench`/`llama-quantize`, and `llama-perplexity` if you want
+`--quality-eval`) on your machine somewhere — quantscope never bundles or
+builds llama.cpp itself; see
+`../../experiments/02-llama-cpp/scripts/setup_llama_cpp.sh` for one way to
+build it.
 
 ```bash
 cd projects/quantscope
 uv sync
+uv run quantscope --version
 uv run quantscope -h
 ```
 
-Or install it as a standalone tool (e.g. into another project, or with
-`pipx`/`uv tool install`):
+Or install it as a standalone tool from a local build (e.g. into another
+project, or with `pipx`/`uv tool install`):
 
 ```bash
 uv build                      # produces dist/quantscope-0.1.0-py3-none-any.whl
 uv tool install dist/quantscope-0.1.0-py3-none-any.whl
 quantscope -h
 ```
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for building, testing, and
+extending quantscope (e.g. adding a new subcommand).
 
 ## Quickstart
 
@@ -100,6 +116,14 @@ uv run quantscope predict Q4_0 Q4_K_M Q5_K_M Q8_0 F16
 
 # re-rank an existing CSV (e.g. from `bench`, or hand-assembled) on different objectives:
 uv run quantscope report --csv results.csv --minimize file_size_mb --maximize gen_tokens_per_second --plot frontier.png
+
+# add a measured quality axis (perplexity) to the bench sweep:
+uv run quantscope bench --llama-bench-bin /path/to/llama-bench \
+  --gguf Q4_K_M=/tmp/quants/model-f16-Q4_K_M.gguf \
+  --gguf Q8_0=/tmp/quants/model-f16-Q8_0.gguf \
+  --llama-perplexity-bin /path/to/llama-perplexity \
+  --perplexity-dataset wiki.test.raw \
+  --output results.csv
 ```
 
 Example `bench` output (formats are illustrative, not measured on real
@@ -149,6 +173,15 @@ program's own data shows quantization speed frequently *doesn't* track bit
 width (see [The problem](#the-problem)). The two are deliberately separate
 commands so a quick guess is never mistaken for a measurement.
 
+**`--quality-eval`.** By default `bench` ranks on speed (tokens/sec) and
+size (file MB) only — it never measures output quality, since that requires
+a separate, much slower `llama-perplexity` run over a real text dataset.
+Passing both `--llama-perplexity-bin` and `--perplexity-dataset` runs
+perplexity per format too and adds it to the Pareto ranking as a third,
+minimized objective — so the ranking can show, concretely, "this format is
+faster but has worse perplexity" rather than only ever ranking on speed/size
+and leaving quality as something you check separately afterward.
+
 **CPU feature divergence (`cpu-info`).** llama.cpp binaries print a
 `system_info:` line at startup reporting which SIMD features *this specific
 build* detected and will use (e.g. `AVX2 = 1`). That's different from what
@@ -184,6 +217,8 @@ summarized here.
 | `--repetitions` | `3` | llama-bench's own internal repetition count (`-r`) |
 | `--output` | *(none)* | Write the ranked table to this CSV path |
 | `--plot` | *(none)* | Write a Pareto-frontier plot (file size vs. gen tokens/sec) to this path |
+| `--llama-perplexity-bin` | *(none)* | Also measure quality via `llama-perplexity`; requires `--perplexity-dataset` too |
+| `--perplexity-dataset` | *(none)* | Text file passed to `llama-perplexity -f`; requires `--llama-perplexity-bin` too |
 
 ### `predict` — heuristic ranking, no benchmarking
 
@@ -231,8 +266,9 @@ boolean column (see the example under [Quickstart](#quickstart)).
 
 **CSV** (`bench --output` / read by `report --csv`) — one row per format:
 `format, gguf_path, file_size_mb, model_size_bytes, prompt_tokens_per_second,
-gen_tokens_per_second, pareto_optimal` (exact columns depend on what was
-benchmarked; `report` accepts any CSV with the columns you pass to
+gen_tokens_per_second, pareto_optimal`, plus `perplexity` when
+`--quality-eval` was used (exact columns depend on what was benchmarked;
+`report` accepts any CSV with the columns you pass to
 `--minimize`/`--maximize`, not just `bench`'s own output).
 
 **Plot** (`--plot`, `bench` or `report`) — a PNG scatter plot, Pareto-optimal
@@ -246,20 +282,20 @@ projects/quantscope/
 ├── pyproject.toml
 ├── quantscope/
 │   ├── cli.py            argparse entry point: bench, predict, quantize, report, formats, cpu-info
-│   ├── llama_bin.py       subprocess wrapper around llama-bench/llama-quantize
+│   ├── llama_bin.py       subprocess wrapper around llama-bench/llama-quantize/llama-perplexity
 │   ├── cpu_detect.py      two-layer CPU feature detection (system_info line vs. OS)
 │   ├── formats.py         discovers supported formats from llama-quantize --help
 │   ├── bench.py           sweeps llama-bench across pre-quantized GGUF files
 │   ├── predict.py         heuristic bit-width-based ranking, no benchmarking
 │   ├── quantize.py        produces missing formats via llama-quantize
 │   └── report.py          Pareto-frontier ranking + plotting
-└── tests/                 26 tests: mocked subprocess, fixture parsing, Pareto logic, CLI end-to-end
+└── tests/                 34 tests: mocked subprocess, fixture parsing, Pareto logic, CLI end-to-end
 ```
 
 See [`ROADMAP.md`](ROADMAP.md) for the design rationale behind each module,
 what was reused from this program's own `experiments/` scripts, and the
-three deliberate deviations from the original plan (installable package
-config, imatrix-only format filtering, no `--quality-eval` yet).
+remaining deliberate deviations from the original plan (installable package
+config, imatrix-only format filtering).
 
 ## Testing
 
@@ -268,14 +304,18 @@ uv run pytest -v
 uv build          # verifies the package actually builds into an installable wheel
 ```
 
+`.github/workflows/quantscope-ci.yml` runs exactly these checks (plus
+`uv sync --locked`) on every push/PR touching `projects/quantscope/**`. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for the full contributor workflow.
+
 Since no real llama.cpp build is assumed to be present, every test either
 mocks `subprocess.run` directly (`tests/test_llama_bin.py`), tests pure
 parsing/ranking logic against fixture strings (`tests/test_cpu_detect.py`,
 `tests/test_formats.py`, `tests/test_report.py`), or runs the full CLI
 (`tests/test_cli.py`) against small stub shell scripts standing in for
-`llama-bench`/`llama-quantize`. A real end-to-end run against an actual
-llama.cpp build and GGUF file is a manual pre-release step, not something
-the automated suite depends on.
+`llama-bench`/`llama-quantize`/`llama-perplexity`. A real end-to-end run
+against an actual llama.cpp build and GGUF file is a manual pre-release
+step, not something the automated suite depends on.
 
 ## Known limitations
 
@@ -285,9 +325,6 @@ the automated suite depends on.
   produce whatever format you name, `IQ*` included, without an imatrix or
   an architecture-compatibility check. Treat `formats`' output as advisory
   when choosing what to pass to `quantize`, not as an enforced guardrail.
-- **No `--quality-eval` mode.** Wrapping `llama-perplexity` to add a
-  measured quality axis (not just speed/size) to the Pareto ranking was
-  planned but not built.
 - **Not validated against a real llama.cpp build.** None was available in
   the environment this was built in; all tests use stub binaries. Numbers
   produced against a real `llama-bench`/`llama-quantize` haven't been
@@ -298,8 +335,11 @@ the automated suite depends on.
   unflagged on CPUs/features outside the common ones this program worked
   with (see `quantscope/cpu_detect.py`'s `_ALIASES`).
 
-See [`ROADMAP.md`](ROADMAP.md) for the full list of what M4 still needs (CI,
-`CONTRIBUTING.md`, tagged release).
+- **No published package.** No PyPI publish, no GitHub Release with a
+  downloadable wheel attached — install from source (see
+  [Installation](#installation)).
+
+See [`ROADMAP.md`](ROADMAP.md) for the full rationale behind each.
 
 ## Relationship to this repo
 

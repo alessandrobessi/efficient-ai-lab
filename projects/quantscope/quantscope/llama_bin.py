@@ -9,8 +9,13 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 import subprocess
 from dataclasses import dataclass
+
+# Matches llama-perplexity's final summary line, e.g.:
+#   Final estimate: PPL = 5.9070 +/- 0.03166
+_PPL_RE = re.compile(r"Final estimate:\s*PPL\s*=\s*([\d.]+)")
 
 
 class LlamaBinError(RuntimeError):
@@ -108,6 +113,33 @@ def get_quantize_help(llama_quantize_bin: str) -> str:
     # --help conventionally exits non-zero in some llama.cpp builds; the
     # text is what matters, not the exit code.
     return proc.stdout + "\n" + proc.stderr
+
+
+def run_llama_perplexity(
+    llama_perplexity_bin: str,
+    gguf_path: str,
+    dataset_path: str,
+    threads: int = 4,
+) -> float:
+    """Runs llama-perplexity over dataset_path and returns the final PPL
+    estimate — the measured quality axis `bench --quality-eval` adds
+    alongside speed/size, so a format comparison can include "what do you
+    give up" and not just "how much faster is it."
+    """
+    cmd = [
+        llama_perplexity_bin,
+        "-m", gguf_path,
+        "-f", dataset_path,
+        "-t", str(threads),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise LlamaBinError(f"llama-perplexity failed (exit {proc.returncode}):\n{proc.stderr}")
+    combined = proc.stdout + "\n" + proc.stderr
+    match = _PPL_RE.search(combined)
+    if not match:
+        raise LlamaBinError(f"could not find a 'Final estimate: PPL = ...' line in llama-perplexity output:\n{combined}")
+    return float(match.group(1))
 
 
 def get_system_info(llama_bench_bin: str) -> str:

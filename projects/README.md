@@ -27,9 +27,9 @@ that matters most under load.
 
 ## [`quantscope/`](quantscope/) — GGUF quantization / CPU-kernel-fit profiler
 
-**Core implemented (M0-M2, M3 partial), pre-release** — installable, all
-subcommands (`bench`, `predict`, `quantize`, `report`, `formats`, `cpu-info`)
-work and are tested end-to-end.
+**`quantscope/v0.1.0` tagged** — CI on every push, installable, all
+subcommands (`bench` including `--quality-eval`, `predict`, `quantize`,
+`report`, `formats`, `cpu-info`) work and are tested end-to-end.
 
 [Week 4](../experiments/04-quantization/README.md) and
 [Week 6](../experiments/06-model-comparison/README.md) repeatedly found that

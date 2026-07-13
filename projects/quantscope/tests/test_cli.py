@@ -37,11 +37,26 @@ touch "$2"
 exit 0
 """
 
+LLAMA_PERPLEXITY_STUB = """#!/bin/sh
+echo "Final estimate: PPL = 6.1234 +/- 0.02" 1>&2
+exit 0
+"""
+
 
 def _write_stub(path, content):
     path.write_text(content)
     path.chmod(path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     return str(path)
+
+
+def test_cli_version(capsys):
+    try:
+        main(["--version"])
+        assert False, "expected SystemExit"
+    except SystemExit as e:
+        assert e.code == 0
+    out = capsys.readouterr().out
+    assert "quantscope" in out
 
 
 def test_cli_predict(capsys):
@@ -98,3 +113,48 @@ def test_cli_bench_end_to_end(tmp_path, capsys):
     assert "Q4_K_M" in out
     assert out_csv.exists()
     assert "pareto_optimal" in out_csv.read_text()
+    assert "perplexity" not in out_csv.read_text()  # no --quality-eval given
+
+
+def test_cli_bench_with_quality_eval(tmp_path, capsys):
+    bench_stub = _write_stub(tmp_path / "llama-bench", LLAMA_BENCH_STUB)
+    perplexity_stub = _write_stub(tmp_path / "llama-perplexity", LLAMA_PERPLEXITY_STUB)
+    gguf_path = tmp_path / "model-q4.gguf"
+    gguf_path.write_bytes(b"0" * (10 * 1024 * 1024))
+    dataset = tmp_path / "wiki.test.raw"
+    dataset.write_text("some text")
+    out_csv = tmp_path / "results.csv"
+
+    rc = main(
+        [
+            "bench",
+            "--llama-bench-bin", bench_stub,
+            "--gguf", f"Q4_K_M={gguf_path}",
+            "--llama-perplexity-bin", perplexity_stub,
+            "--perplexity-dataset", str(dataset),
+            "--output", str(out_csv),
+        ]
+    )
+    assert rc == 0
+    csv_text = out_csv.read_text()
+    assert "perplexity" in csv_text
+    assert "6.1234" in csv_text
+
+
+def test_cli_bench_quality_eval_requires_both_flags(tmp_path):
+    bench_stub = _write_stub(tmp_path / "llama-bench", LLAMA_BENCH_STUB)
+    gguf_path = tmp_path / "model-q4.gguf"
+    gguf_path.write_bytes(b"0")
+
+    try:
+        main(
+            [
+                "bench",
+                "--llama-bench-bin", bench_stub,
+                "--gguf", f"Q4_K_M={gguf_path}",
+                "--llama-perplexity-bin", "/some/path",
+            ]
+        )
+        assert False, "expected SystemExit"
+    except SystemExit as e:
+        assert "quality-eval" in str(e)

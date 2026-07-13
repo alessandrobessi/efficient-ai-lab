@@ -1,13 +1,14 @@
 # quantscope — Development Roadmap
 
-**Status: M0-M2 implemented, M3 partial.** The architecture below reflects
-what was actually built (see `quantscope/`), not just a plan. Three
-deliberate deviations from the original plan, noted inline where they occur:
-`pyproject.toml` builds an installable package (`[build-system]`/hatchling,
-`project.scripts`) rather than using `[tool.uv] package = false`, since
-`uv build`ing a real wheel is an explicit M4 goal; format applicability
-filtering is imatrix-based only, not full GGUF-metadata/architecture-based;
-and `--quality-eval` (wrapping `llama-perplexity`) was not built.
+**Status: M0-M4 implemented — `quantscope/v0.1.0` tagged.** The architecture
+below reflects what was actually built (see `quantscope/`), not just a plan.
+Two deliberate deviations from the original plan remain, noted inline where
+they occur: `pyproject.toml` builds an installable package
+(`[build-system]`/hatchling, `project.scripts`) rather than using
+`[tool.uv] package = false`; and format applicability filtering is
+imatrix-based only, not full GGUF-metadata/architecture-based.
+`--quality-eval` (wrapping `llama-perplexity`) — previously deferred — was
+built as part of closing out M3.
 
 ## Why this exists
 
@@ -52,12 +53,13 @@ projects/quantscope/
 │   ├── cli.py                    entry point: bench, predict, quantize, report, formats, cpu-info subcommands
 │   ├── cpu_detect.py              two-layer CPU feature detection (see below)
 │   ├── formats.py                 query llama-quantize for supported formats; filter by imatrix availability
-│   ├── llama_bin.py               subprocess wrapper (evolves llama_cpp_runner.py)
-│   ├── bench.py                   measure: sweep llama-bench across formats
+│   ├── llama_bin.py               subprocess wrapper (evolves llama_cpp_runner.py); also wraps llama-perplexity
+│   ├── bench.py                   measure: sweep llama-bench (+ optional llama-perplexity) across formats
 │   ├── predict.py                 heuristic-only, no benchmarking, confidence-labeled
 │   ├── quantize.py                auto-produce missing formats via llama-quantize
 │   └── report.py                 Pareto-frontier ranking, table + plot output
-├── tests/                        26 tests: mocked-subprocess, fixture-based parsing, Pareto logic, CLI end-to-end via stub scripts
+├── tests/                        34 tests: mocked-subprocess, fixture-based parsing, Pareto logic, CLI end-to-end via stub scripts
+├── CONTRIBUTING.md
 └── ROADMAP.md, README.md, LICENSE
 ```
 
@@ -101,6 +103,16 @@ quality), reusing the same "dominated" / "Pareto-optimal" language this
 program used in Weeks 5, 6, and the architecture decision framework, so a user
 already familiar with that framing gets the same mental model here.
 
+**`--quality-eval`** — `bench.sweep()` takes optional `llama_perplexity_bin`/
+`perplexity_dataset` arguments; when both are given, it runs
+`llama_bin.run_llama_perplexity` (parses llama-perplexity's
+`Final estimate: PPL = X.XXXX` summary line) per format and adds a
+`perplexity` field to `FormatResult`, which `cli.py`'s `cmd_bench` then adds
+to the Pareto ranking's `minimize` objectives alongside file size. Kept as
+opt-in (not run by default) because perplexity evaluation over a real
+dataset is much slower than a speed benchmark — a plain `bench` sweep stays
+fast, and quality is added deliberately, not automatically.
+
 ## Milestones
 
 | Milestone | Scope | Status |
@@ -108,26 +120,32 @@ already familiar with that framing gets the same mental model here.
 | **M0** | `bench` CLI wrapping `llama-bench` over a fixed/supplied format list, ranked table output | **Done** — `cmd_bench`/`sweep`, tested against a stub `llama-bench` binary end-to-end (`test_cli.py::test_cli_bench_end_to_end`); reproducing Week 4's actual numbers requires a real llama.cpp build, not available in this environment, so that specific exit criterion is unverified rather than failed |
 | **M1** | CPU feature detection + heuristic `predict` mode | **Done** — `cpu_detect.py`, `predict.py`; feature-line parsing tested against hand-written fixture strings (not yet against multiple *real* captured llama.cpp version strings — only one representative fixture) |
 | **M2** | `quantize` (auto-produce missing formats) + format applicability filtering | **Done**, with the imatrix-only filtering deviation noted above |
-| **M3** | Pareto report/plot polish; optional `--quality-eval` wrapping `llama-perplexity` | **Partial** — Pareto ranking and plotting (`report.py`) done and tested; `--quality-eval` not built |
-| **M4** | Docs, CI, `CONTRIBUTING.md`, tagged `v0.1.0` (`uv build`) | **Partial** — `uv build` verified to produce a working wheel; no CI, no `CONTRIBUTING.md`, no tag yet |
+| **M3** | Pareto report/plot polish; optional `--quality-eval` wrapping `llama-perplexity` | **Done** — Pareto ranking/plotting (`report.py`); `--quality-eval` implemented (`run_llama_perplexity`, `bench.sweep`'s optional args, `cmd_bench`'s validation that both flags are given together), tested at both the subprocess-parsing layer and full CLI end-to-end via a stub `llama-perplexity` script |
+| **M4** | Docs, CI, `CONTRIBUTING.md`, tagged `v0.1.0` (`uv build`) | **Done** — `.github/workflows/quantscope-ci.yml` (`uv sync --locked`, `pytest`, `uv build` on every push/PR touching `projects/quantscope/**`), `CONTRIBUTING.md`, a `--version` flag, git tag `quantscope/v0.1.0`. No PyPI publish and no GitHub Release with a downloadable wheel attached — that step was deliberately held back pending the maintainer's own call on publishing publicly (same reasoning as `llmpace`'s M4) |
 
 ## Testing strategy
 
 - **Mocked-subprocess tests** for `llama_bin.py` (`tests/test_llama_bin.py`)
-  using canned `llama-bench`/`llama-quantize` output — no real llama.cpp
-  build needed.
+  using canned `llama-bench`/`llama-quantize`/`llama-perplexity` output — no
+  real llama.cpp build needed.
 - **Fixture-based parsing tests** for the feature-line parser
   (`tests/test_cpu_detect.py`) and the `--help` format-list parser
   (`tests/test_formats.py`).
 - **Pareto/non-dominated-sort tests** (`tests/test_report.py`) against a
   hand-computed expected set (4 points, one deliberately dominated).
 - **CLI end-to-end tests** (`tests/test_cli.py`) using small stub shell
-  scripts standing in for `llama-bench`/`llama-quantize`, covering every
-  subcommand through `cli.main()` rather than only the underlying functions.
+  scripts standing in for `llama-bench`/`llama-quantize`/`llama-perplexity`,
+  covering every subcommand through `cli.main()` rather than only the
+  underlying functions — including `bench --quality-eval`'s full path and
+  the validation error when only one of the two required flags is given.
   This is the "no real llama.cpp build needed" tier the roadmap called for;
   a real end-to-end run against an actual llama.cpp build and GGUF was not
   performed in this environment (none was available) and remains a genuine
   manual pre-release step, as planned.
+- **CI** (`.github/workflows/quantscope-ci.yml`) runs `uv sync --locked`,
+  `uv run pytest`, and `uv build` on every push/PR touching
+  `projects/quantscope/**` — confirmed passing against GitHub's own runners,
+  not just locally.
 
 ## Explicitly deferred (stretch goal, not v1.0 scope)
 

@@ -12,7 +12,7 @@ import argparse
 import dataclasses
 import sys
 
-from quantscope import cpu_detect, predict as predict_mod
+from quantscope import __version__, cpu_detect, predict as predict_mod
 from quantscope.bench import sweep
 from quantscope.formats import applicable_formats, list_supported_formats
 from quantscope.llama_bin import LlamaBinError, get_system_info
@@ -31,6 +31,9 @@ def _parse_gguf_args(pairs: list[str]) -> dict[str, str]:
 
 
 def cmd_bench(args: argparse.Namespace) -> int:
+    if bool(args.llama_perplexity_bin) != bool(args.perplexity_dataset):
+        raise SystemExit("--quality-eval needs both --llama-perplexity-bin and --perplexity-dataset")
+
     gguf_paths = _parse_gguf_args(args.gguf)
     results = sweep(
         args.llama_bench_bin,
@@ -39,9 +42,17 @@ def cmd_bench(args: argparse.Namespace) -> int:
         n_gen=args.n_gen,
         threads=args.threads,
         repetitions=args.repetitions,
+        llama_perplexity_bin=args.llama_perplexity_bin,
+        perplexity_dataset=args.perplexity_dataset,
     )
     rows = [dataclasses.asdict(r) for r in results]
-    df = rank_table(rows, minimize=["file_size_mb"], maximize=["gen_tokens_per_second"])
+    minimize = ["file_size_mb"]
+    if args.llama_perplexity_bin:
+        minimize.append("perplexity")
+    else:
+        for row in rows:
+            row.pop("perplexity", None)
+    df = rank_table(rows, minimize=minimize, maximize=["gen_tokens_per_second"])
     print(df.to_string(index=False))
     if args.output:
         df.to_csv(args.output, index=False)
@@ -118,6 +129,7 @@ def cmd_cpu_info(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="quantscope", description=__doc__)
+    parser.add_argument("--version", action="version", version=f"quantscope {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("bench", help="sweep llama-bench across pre-quantized GGUF files")
@@ -129,6 +141,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--repetitions", type=int, default=3)
     p.add_argument("--output", help="write ranked results to this CSV path")
     p.add_argument("--plot", help="write a Pareto-frontier plot to this path")
+    p.add_argument("--llama-perplexity-bin", help="also measure quality via llama-perplexity (needs --perplexity-dataset too)")
+    p.add_argument("--perplexity-dataset", help="text file passed to llama-perplexity -f (needs --llama-perplexity-bin too)")
     p.set_defaults(func=cmd_bench)
 
     p = sub.add_parser("predict", help="heuristic format ranking, no benchmarking (see CONFIDENCE_CAVEAT)")
