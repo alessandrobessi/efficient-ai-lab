@@ -110,6 +110,7 @@ efficient-ai-lab/
 ├── experiments/                  one directory per week, each self-contained (§6)
 ├── evaluation/                   shared model-evaluation framework (from Week 4 onward)
 ├── services/                     Go inference gateway and load generator (from Week 7)
+├── projects/                      planned follow-on tools, roadmaps only (§13)
 ├── infrastructure/                Docker, Kubernetes, Prometheus, Grafana configs
 ├── scripts/                      repo-wide utility scripts
 ├── results/                      canonical experiment data pipeline (§7)
@@ -218,13 +219,34 @@ No chatbot UI, no ChatGPT clone, no auth/user management, no SaaS product, no ge
 agent framework, no generic RAG demo, no unnecessary microservices. This is a research
 program, not a product — see `FULL-ROADMAP.md` §17 for the full scope-control rules.
 
-## 13. Publication
+## 13. Follow-On Projects
+
+After 12 weeks, two findings kept pointing at the same conclusion: the tool
+needed to act on them doesn't exist yet, and building it would be useful
+independently of this research program — the way llama.cpp itself filled a
+real gap rather than staying a research artifact. Both are planned, with full
+development roadmaps, under [`projects/`](projects/):
+
+- **[`llmpace`](projects/llmpace/)** — a coordinated-omission-safe, LLM-native
+  load testing tool, addressing what Week 8 found firsthand: generic load
+  testers don't model streaming (TTFT/inter-token latency) and are easy to get
+  coordinated omission wrong on, hiding exactly the tail latency that matters
+  under load.
+- **[`quantscope`](projects/quantscope/)** — a GGUF quantization / CPU-kernel-fit
+  profiler, addressing what Weeks 4 and 6 found repeatedly: quantization
+  speed and memory don't correlate cleanly with bit-width or parameter count,
+  and finding the fast format for a given model+CPU took hours of manual
+  benchmarking with no automated tool to do it.
+
+Neither is built yet — see each project's `ROADMAP.md` for the full plan.
+
+## 14. Publication
 
 Work is published at three levels: the code and raw data live here on GitHub
 (reproducibility), interpreted findings are written up as field notes and reports on
 **bessilabs**, and select milestones get a **Learning in Public** video. See
 `FULL-ROADMAP.md` §§11–12 for the schedule.
 
-## 14. License
+## 15. License
 
 See [`LICENSE`](LICENSE).
