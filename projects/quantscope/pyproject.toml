@@ -1,0 +1,23 @@
+[project]
+name = "quantscope"
+version = "0.1.0"
+description = "A CLI that sweeps GGUF quantization formats against llama-bench and llama-quantize to find the fastest format for a given model and CPU, and reports the speed/memory/quality tradeoffs as a Pareto frontier."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.2",
+    "matplotlib>=3.9",
+]
+
+[project.scripts]
+quantscope = "quantscope.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["quantscope"]
+
+[dependency-groups]
+dev = ["pytest>=8"]

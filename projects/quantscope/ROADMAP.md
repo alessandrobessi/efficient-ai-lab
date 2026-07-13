@@ -1,8 +1,13 @@
 # quantscope — Development Roadmap
 
-**Status: planned.** This document describes the architecture and milestones
-for a tool that does not exist yet. No code or `pyproject.toml` has been
-created — this is what a future implementation session should build against.
+**Status: M0-M2 implemented, M3 partial.** The architecture below reflects
+what was actually built (see `quantscope/`), not just a plan. Three
+deliberate deviations from the original plan, noted inline where they occur:
+`pyproject.toml` builds an installable package (`[build-system]`/hatchling,
+`project.scripts`) rather than using `[tool.uv] package = false`, since
+`uv build`ing a real wheel is an explicit M4 goal; format applicability
+filtering is imatrix-based only, not full GGUF-metadata/architecture-based;
+and `--quality-eval` (wrapping `llama-perplexity`) was not built.
 
 ## Why this exists
 
@@ -33,25 +38,35 @@ a person doing it by hand across many benchmark runs.
 
 ## Architecture
 
-Independent Python package (`pyproject.toml` + `uv`,
-`requires-python >= 3.11`, `[tool.uv] package = false` to match this repo's
-existing convention).
+Independent Python package (`pyproject.toml` + `uv`, `requires-python >= 3.11`).
+**Deviation:** builds as a real installable package (`[build-system]` via
+hatchling, `project.scripts` entry point `quantscope`), not
+`[tool.uv] package = false` as originally planned — `uv build` producing a
+wheel is one of M4's own exit criteria, so the package needed to be
+installable from the start rather than retrofitted later.
 
 ```
 projects/quantscope/
 ├── pyproject.toml
 ├── quantscope/
-│   ├── cli.py                    entry point: bench, predict, quantize, report subcommands
+│   ├── cli.py                    entry point: bench, predict, quantize, report, formats, cpu-info subcommands
 │   ├── cpu_detect.py              two-layer CPU feature detection (see below)
-│   ├── formats.py                 query llama-quantize for supported formats; filter by GGUF applicability
+│   ├── formats.py                 query llama-quantize for supported formats; filter by imatrix availability
 │   ├── llama_bin.py               subprocess wrapper (evolves llama_cpp_runner.py)
 │   ├── bench.py                   measure: sweep llama-bench across formats
 │   ├── predict.py                 heuristic-only, no benchmarking, confidence-labeled
 │   ├── quantize.py                auto-produce missing formats via llama-quantize
 │   └── report.py                 Pareto-frontier ranking, table + plot output
-├── tests/
+├── tests/                        26 tests: mocked-subprocess, fixture-based parsing, Pareto logic, CLI end-to-end via stub scripts
 └── ROADMAP.md, README.md, LICENSE
 ```
+
+`cli.py` grew two subcommands beyond the original plan: `formats` (list what
+a `llama-quantize` binary supports/excludes) and `cpu-info` (print the
+`cpu_detect` divergence check directly) — both were internal building blocks
+the plan already required; exposing them as subcommands cost little and
+makes each independently useful/testable rather than only reachable as a
+side effect of `bench`.
 
 **`cpu_detect.py`** — two-layer detection: parse llama.cpp's own reported
 feature line at startup (ground truth for what *this specific build* actually
@@ -62,9 +77,12 @@ diagnostic this program never had.
 
 **`formats.py`** — queries the installed `llama-quantize` binary for its
 currently supported format list at runtime rather than hardcoding one, since
-llama.cpp adds and renames formats across versions; filters that list against
-the target GGUF's own metadata (architecture, existing quantization) for
-applicability before including a format in a sweep.
+llama.cpp adds and renames formats across versions. **Deviation:**
+applicability filtering as implemented is imatrix-based only (`IQ*` formats
+need one to quantize well and are excluded unless `--imatrix` is passed) —
+full GGUF-metadata/architecture-based filtering (e.g. excluding formats
+incompatible with a specific model architecture) was not built; every format
+`llama-quantize` reports is otherwise treated as applicable.
 
 **`bench.py` / `predict.py` split** — `bench` always measures via
 `llama-bench`; `predict` is an explicitly labeled heuristic (bit-width and
@@ -85,26 +103,31 @@ already familiar with that framing gets the same mental model here.
 
 ## Milestones
 
-| Milestone | Scope | Exit criteria |
+| Milestone | Scope | Status |
 |---|---|---|
-| **M0** | `bench` CLI wrapping `llama-bench` over a fixed/supplied format list, ranked table output | Reproduces Week 4's own numbers within noise, against the same model/format set |
-| **M1** | CPU feature detection + heuristic `predict` mode | Feature-line parsing matches a fixture table of real captured strings across llama.cpp versions |
-| **M2** | `quantize` (auto-produce missing formats) + metadata-based format applicability filtering | Round-trip test: quantize a format, bench it, confirm it appears correctly ranked |
-| **M3** | Pareto report/plot polish; optional `--quality-eval` wrapping `llama-perplexity` | Non-dominated-sort output matches hand-computed expected sets on fixture data |
-| **M4** | Docs, CI, `CONTRIBUTING.md`, tagged `v0.1.0` (`uv build`) | `uv run pytest` green in CI on a fresh clone without a real llama.cpp build present |
+| **M0** | `bench` CLI wrapping `llama-bench` over a fixed/supplied format list, ranked table output | **Done** — `cmd_bench`/`sweep`, tested against a stub `llama-bench` binary end-to-end (`test_cli.py::test_cli_bench_end_to_end`); reproducing Week 4's actual numbers requires a real llama.cpp build, not available in this environment, so that specific exit criterion is unverified rather than failed |
+| **M1** | CPU feature detection + heuristic `predict` mode | **Done** — `cpu_detect.py`, `predict.py`; feature-line parsing tested against hand-written fixture strings (not yet against multiple *real* captured llama.cpp version strings — only one representative fixture) |
+| **M2** | `quantize` (auto-produce missing formats) + format applicability filtering | **Done**, with the imatrix-only filtering deviation noted above |
+| **M3** | Pareto report/plot polish; optional `--quality-eval` wrapping `llama-perplexity` | **Partial** — Pareto ranking and plotting (`report.py`) done and tested; `--quality-eval` not built |
+| **M4** | Docs, CI, `CONTRIBUTING.md`, tagged `v0.1.0` (`uv build`) | **Partial** — `uv build` verified to produce a working wheel; no CI, no `CONTRIBUTING.md`, no tag yet |
 
 ## Testing strategy
 
-- **Mocked-subprocess tests** for `llama_bin.py` using canned `llama-bench`/
-  `llama-quantize` output, so most of the suite runs without a real llama.cpp
-  build in CI.
-- **Feature-line regex tests** against a fixture table of real feature strings
-  captured across multiple llama.cpp versions, since the exact log format is
-  the single most version-fragile dependency in the tool.
-- **Pareto/non-dominated-sort tests** against hand-computed expected sets.
-- **One real end-to-end smoke test**, gated behind an integration marker and
-  skipped by default in CI — run manually before a release, against an actual
-  llama.cpp build and a small real GGUF.
+- **Mocked-subprocess tests** for `llama_bin.py` (`tests/test_llama_bin.py`)
+  using canned `llama-bench`/`llama-quantize` output — no real llama.cpp
+  build needed.
+- **Fixture-based parsing tests** for the feature-line parser
+  (`tests/test_cpu_detect.py`) and the `--help` format-list parser
+  (`tests/test_formats.py`).
+- **Pareto/non-dominated-sort tests** (`tests/test_report.py`) against a
+  hand-computed expected set (4 points, one deliberately dominated).
+- **CLI end-to-end tests** (`tests/test_cli.py`) using small stub shell
+  scripts standing in for `llama-bench`/`llama-quantize`, covering every
+  subcommand through `cli.main()` rather than only the underlying functions.
+  This is the "no real llama.cpp build needed" tier the roadmap called for;
+  a real end-to-end run against an actual llama.cpp build and GGUF was not
+  performed in this environment (none was available) and remains a genuine
+  manual pre-release step, as planned.
 
 ## Explicitly deferred (stretch goal, not v1.0 scope)
 

@@ -1,11 +1,40 @@
 # quantscope
 
-**Status: planned — not yet built.** See [`ROADMAP.md`](ROADMAP.md) for the full
-development plan.
+**Status: core implemented, pre-release.** Installable, tested end-to-end
+(`bench`, `predict`, `quantize`, `report`, `formats`, `cpu-info` all work).
+Not yet packaged as a tagged release (no CI, no `CONTRIBUTING.md`) — see
+[`ROADMAP.md`](ROADMAP.md) for what's left.
 
 A CLI that answers a question this program's own research raised but never
 fully automated: **for this model, on this CPU, which GGUF quantization format
 is actually fastest — and what do you give up to get there?**
+
+## Quickstart
+
+```bash
+cd projects/quantscope
+uv sync
+
+# what does this llama-quantize binary support, and what's usable without an imatrix?
+uv run quantscope formats --llama-quantize-bin /path/to/llama-quantize
+
+# is this CPU's hardware being fully used by this llama.cpp build?
+uv run quantscope cpu-info --llama-bench-bin /path/to/llama-bench
+
+# produce missing formats, then benchmark them:
+uv run quantscope quantize --llama-quantize-bin /path/to/llama-quantize \
+  --input model-f16.gguf --output-dir /tmp/quants Q4_K_M Q5_K_M Q8_0
+uv run quantscope bench --llama-bench-bin /path/to/llama-bench \
+  --gguf Q4_K_M=/tmp/quants/model-f16-Q4_K_M.gguf \
+  --gguf Q5_K_M=/tmp/quants/model-f16-Q5_K_M.gguf \
+  --gguf Q8_0=/tmp/quants/model-f16-Q8_0.gguf \
+  --output results.csv --plot frontier.png
+
+# quick heuristic guess without benchmarking anything (see the caveat it prints):
+uv run quantscope predict Q4_0 Q4_K_M Q5_K_M Q8_0 F16
+```
+
+Run `uv run quantscope <subcommand> -h` for every flag.
 
 ## The problem
 

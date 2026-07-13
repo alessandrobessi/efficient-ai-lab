@@ -236,7 +236,8 @@ real gap rather than staying a research artifact. Both live under
   profiler, addressing what Weeks 4 and 6 found repeatedly: quantization
   speed and memory don't correlate cleanly with bit-width or parameter count,
   and finding the fast format for a given model+CPU took hours of manual
-  benchmarking with no automated tool to do it. Planned, not yet built.
+  benchmarking with no automated tool to do it. **Core implemented (M0-M2)**,
+  pre-release.
 
 ## 14. Publication
 
