@@ -1,8 +1,13 @@
 # llmpace — Development Roadmap
 
-**Status: planned.** This document describes the architecture and milestones
-for a tool that does not exist yet. No code, `go.mod`, or scaffolding has been
-created — this is what a future implementation session should build against.
+**Status: M0-M3 implemented.** The architecture below reflects what was
+actually built (see `internal/`), not just a plan. M4 (CI, docs polish,
+`CONTRIBUTING.md`, tagged release with cross-compiled binaries) remains.
+Two deliberate simplifications versus the original plan: the YAML
+multi-stage test-plan file (config is CLI-flags-only for now, single
+stage per run) and a live `/metrics` Prometheus endpoint (a static
+textfile-collector-format dump via `-prometheus-out` exists instead) —
+both noted inline below where they diverge.
 
 ## Why this exists
 
@@ -71,21 +76,25 @@ projects/llmpace/
 └── ROADMAP.md, README.md, LICENSE
 ```
 
-**`Adapter` interface** — the core new abstraction:
+**`Adapter` interface** — the core new abstraction (as implemented, in
+`internal/adapter/adapter.go`):
 
 ```go
 type Adapter interface {
-    BuildRequest(prompt string) (*http.Request, error)
-    // Stream reads the response body and invokes onToken for each token as it
-    // arrives, so no adapter buffers a full response. Returns TTFT and the
-    // per-token arrival timestamps needed for inter-token latency.
-    Stream(resp *http.Response, onToken func(t time.Time)) (ttft time.Duration, err error)
+    Name() string
+    BuildRequest(ctx context.Context, baseURL string, req Request) (*http.Request, error)
+    // Stream reads resp.Body incrementally, invoking onToken with the
+    // wall-clock time each token/chunk was observed — no adapter buffers a
+    // full response. Returns the total number of tokens seen; TTFT and
+    // inter-token gaps are derived by the caller (internal/dispatch.Sender)
+    // from the onToken timestamps, not returned here.
+    Stream(resp *http.Response, onToken func(t time.Time)) (tokens int, err error)
 }
 ```
 
 Each adapter owns its own wire format (SSE `data:` lines for llama.cpp/OpenAI,
-newline-delimited JSON for Ollama) behind one `bufio.Scanner`-based line
-reader shared across implementations.
+newline-delimited JSON for Ollama) behind shared `bufio.Scanner`-based line
+readers (`scanSSELines`/`scanNDJSONLines` in `internal/adapter/sse.go`).
 
 **Dispatch** — open-loop is the default mode. Closed-loop (N clients, each
 waiting for a response before re-issuing) is kept as an opt-in for parity with
@@ -101,14 +110,18 @@ mean, because tail ITL is exactly what coordinated omission hides. Every
 report shows naive and corrected percentiles side by side, with a warning
 when they diverge by more than 2x, rather than requiring a flag to opt in.
 
-**Config** — CLI flags (stdlib `flag`) cover single-run usage. An optional
-YAML test-plan file adds multi-stage/multi-backend runs — this is a
-deliberate stdlib exception, justified the same way ADR 0001 justified
-`prometheus/client_golang`: added only because the roadmap has an explicit
-requirement (multi-stage config) that the standard library has no answer for.
+**Config** — CLI flags (stdlib `flag`) cover single-run usage
+(`internal/config/config.go`). **Deviation from the original plan:** the
+optional YAML multi-stage test-plan file described below was not built —
+single-run flags covered every M0-M3 exit criterion without it, so the extra
+dependency wasn't yet justified per ADR 0001's own "only when structurally
+necessary" standard. It remains a reasonable M4+ addition if multi-stage
+sweeps (e.g. a concurrency ramp in one invocation) turn out to be worth it;
+`-csv` already supports the common workaround (append one row per run,
+scripted from the outside, into one comparison table).
 
 ```yaml
-# example test-plan.yaml (M3+)
+# example test-plan.yaml (not yet implemented — see deviation note above)
 stages:
   - name: warmup
     backend: llamacpp
@@ -122,43 +135,53 @@ stages:
     rate: 20
 ```
 
-**Reporting** — human-readable table (default), JSON (raw JSONL trace +
-summary), CSV, and Prometheus exposition. Prometheus output targets two
-consumers: a live `/metrics` endpoint that plugs directly into the existing
-`infrastructure/prometheus/prometheus.yml` stack for real-time dashboards
-during a run, and a static textfile-collector-format dump for CI/archival.
+**Reporting** — human-readable table (default, `internal/report.PrintTable`),
+JSON (raw JSONL trace + summary), CSV (`-csv`, appends one row per run for
+comparison), and a Prometheus textfile-collector-format dump (`-prometheus-out`).
+**Deviation from the original plan:** a live `/metrics` HTTP endpoint scraped
+during the run was not built — only the static post-run dump. The static file
+already integrates with `infrastructure/prometheus/prometheus.yml` via a
+file-based scrape target; a live endpoint is only worth adding if watching a
+dashboard *during* a long run (rather than after) becomes a real need.
 
-**Memory, for long or high-QPS runs** — the current tool holds the full result
-set in memory and uses small buffered channels, which is fine for a 60-second
-local benchmark and not fine for a soak test. `llmpace` streams results to the
-JSONL writer incrementally instead of buffering them, and computes percentiles
-over a bounded reservoir sample once total request count exceeds a
-configurable threshold (falling back to exact percentiles below it) — trading
-a small, controlled bias for bounded memory on multi-hour runs.
+**Memory, for long or high-QPS runs** — implemented as planned:
+`internal/report.JSONLWriter` streams each result to disk as it arrives, and
+`internal/stats.Accumulator` folds each result into a `Reservoir`
+(`internal/stats/reservoir.go`, Algorithm R) instead of ever holding a full
+result slice — bounded by `-max-samples` (default 100,000) regardless of how
+long a run lasts. Below that many requests, the reservoir holds every value
+(exact percentiles); above it, a uniform random sample (see
+`TestReservoir_BoundedAboveCapacity`/`TestReservoir_ApproximatesMedian`).
 
 ## Milestones
 
-| Milestone | Scope | Exit criteria |
+| Milestone | Scope | Status |
 |---|---|---|
-| **M0** | Walking skeleton: port stats/dispatch/prompts, non-streaming, llama.cpp only | Reproduces Week 8's own non-streaming numbers within noise against the same backend |
-| **M1** | Streaming + TTFT/ITL for llama.cpp, open-loop-by-default | Mock SSE server with injected inter-chunk delays; measured TTFT/ITL land within tolerance of injected values |
-| **M2** | Add OpenAI-compatible and Ollama adapters | Each adapter passes the same `httptest` conformance suite (correct TTFT, correct token count, correct stream termination handling) |
-| **M3** | Config file, CSV/Prometheus output, bounded-memory soak validation | A multi-hour synthetic soak run holds bounded memory (measured, not assumed) and produces valid Prometheus exposition scraped by a local Prometheus instance |
-| **M4** | Docs, CI, `CONTRIBUTING.md`, tagged `v0.1.0` with cross-compiled binaries | `go test ./...` green in CI on a fresh clone; release binaries produced for darwin/linux, amd64/arm64 |
+| **M0** | Walking skeleton: port stats/dispatch/prompts, non-streaming, llama.cpp only | **Done** — superseded by M1 (streaming shipped directly rather than staged) |
+| **M1** | Streaming + TTFT/ITL for llama.cpp, open-loop-by-default | **Done** — `TestSender_Do_RecordsTTFTAndInterTokenGaps`, `TestLlamaCPP_StreamCountsTokensAndStopsAtStop`; verified end-to-end against a local mock SSE server |
+| **M2** | Add OpenAI-compatible and Ollama adapters | **Done** — `TestOpenAI_StreamStopsAtDoneSentinel`, `TestOllama_StreamNDJSONStopsAtDone` |
+| **M3** | CSV/Prometheus output, bounded-memory design | **Mostly done** — reservoir sampling, CSV, and Prometheus textfile output are implemented and unit-tested; a real multi-hour soak run against a live backend has not actually been executed, only the bounded-memory mechanism itself (unit tests up to 200k samples). YAML config file explicitly deferred (see note above) |
+| **M4** | Docs, CI, `CONTRIBUTING.md`, tagged `v0.1.0` with cross-compiled binaries | **Not started** |
 
 ## Testing strategy
 
-- **Behavioral, not just compiling**: port
-  `TestRunOpenLoop_QueueDelayGrowsUnderSaturation` as the model for proving
-  the CO-correction mechanism against an artificially slow mock backend,
-  rather than only asserting the code compiles and runs.
-- **Adapter tests** via `httptest`, using both hand-written synthetic
-  SSE/NDJSON fixtures and recorded-real traffic captured from an actual
-  llama.cpp/Ollama server, so wire-format edge cases (partial chunks, keep-alive
-  lines, trailing whitespace) are covered.
-- **No live-server tier in CI.** A real end-to-end run against a live
-  inference server is a documented manual pre-release step, not something CI
-  depends on.
+- **Behavioral, not just compiling**: ported as
+  `TestRunOpenLoop_QueueDelayGrowsUnderSaturation`
+  (`internal/dispatch/dispatch_test.go`) — proves the CO-correction mechanism
+  against an artificially slow mock backend, including the assertion that
+  corrected latency exceeds naive latency once queueing occurs.
+  `internal/stats/stats_test.go`'s `TestAccumulator_FlagsCoordinatedOmission`
+  and `TestAccumulator_NoWarningWhenLatenciesAgree` are the equivalent proof
+  for the divergence-warning logic itself.
+- **Adapter tests** via `httptest` (`internal/adapter/*_test.go`) using
+  hand-written synthetic SSE/NDJSON fixtures, covering stream-termination
+  correctness (must stop at `stop:true` / `[DONE]` / `done:true` and not count
+  or hang on trailing data after it). Recorded-real traffic fixtures from an
+  actual llama.cpp/Ollama server are not yet included — a reasonable M4
+  addition once one is convenient to capture.
+- **No live-server tier in CI** (there is no CI yet — M4). A real end-to-end
+  run against a live inference server was done manually during development
+  (see the Quickstart in `README.md`) rather than automated.
 
 ## Explicitly deferred (documented limitation, not silently omitted)
 
