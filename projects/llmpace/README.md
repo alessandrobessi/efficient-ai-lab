@@ -2,32 +2,29 @@
 
 **Status: core implemented (M0-M3), pre-release.** Builds, tests, and runs
 end-to-end against llama.cpp, OpenAI-compatible, and Ollama servers. Not yet
-packaged as a tagged release (no CI, no cross-compiled binaries,
-no `CONTRIBUTING.md`) — see [`ROADMAP.md`](ROADMAP.md) for what's left (M4).
+packaged as a tagged release (no CI, no cross-compiled binaries, no
+`CONTRIBUTING.md`) — see [`ROADMAP.md`](ROADMAP.md) for what's left (M4) and
+for the full architecture rationale behind everything summarized here.
 
 A load testing tool built specifically for LLM inference servers, correct by
 default about the one thing generic load testers routinely get wrong under
 load: **coordinated omission**.
 
-## Quickstart
+## Table of contents
 
-```bash
-cd projects/llmpace
-go build -o llmpace .
-
-# against a local llama.cpp server (llama-server), open-loop, 20 req/s, 30s:
-./llmpace -backend llamacpp -url http://127.0.0.1:8080 -rps 20 -duration 30s
-
-# write raw per-request JSONL + a summary JSON alongside it:
-./llmpace -backend llamacpp -url http://127.0.0.1:8080 -output results/run1.jsonl
-
-# OpenAI-compatible or Ollama:
-./llmpace -backend openai -url http://127.0.0.1:8000 -model my-model -rps 10 -duration 30s
-./llmpace -backend ollama -url http://127.0.0.1:11434 -model llama3 -rps 10 -duration 30s
-```
-
-Run `./llmpace -h` for every flag (mode, concurrency, max-tokens, temperature,
-CSV/Prometheus output, reservoir cap for long runs, etc).
+- [The problem](#the-problem)
+- [What llmpace does differently](#what-llmpace-does-differently)
+- [Installation](#installation)
+- [Quickstart](#quickstart)
+- [Concepts](#concepts)
+- [CLI reference](#cli-reference)
+- [Backends](#backends)
+- [Output formats](#output-formats)
+- [Architecture](#architecture)
+- [Testing](#testing)
+- [Known limitations](#known-limitations)
+- [Relationship to this repo](#relationship-to-this-repo)
+- [License](#license)
 
 ## The problem
 
@@ -58,18 +55,261 @@ measured).
 - **Naive and corrected percentiles side by side, always.** Every report shows
   both, with a visible warning when they diverge — you don't have to know to
   ask for coordinated-omission correction to get it.
+- **Bounded memory on long runs.** Percentiles are computed over a reservoir
+  sample once a run exceeds `-max-samples` requests, instead of holding every
+  result in memory — see [Concepts](#concepts).
 - **Speaks the backends people actually run**: llama.cpp's `/completion`,
   OpenAI-compatible `/v1/chat/completions`, and Ollama's `/api/generate`.
+
+## Installation
+
+Requires Go 1.23+. No third-party dependencies (stdlib only, per
+[ADR 0001](../../docs/decisions/0001-go-for-inference-gateway.md)'s
+reasoning) — `go build` needs no network access beyond fetching the Go
+toolchain itself.
+
+```bash
+cd projects/llmpace
+go build -o llmpace .
+./llmpace -h
+```
+
+Or run directly without a separate build step:
+
+```bash
+go run . -backend llamacpp -url http://127.0.0.1:8080 -duration 10s
+```
+
+## Quickstart
+
+```bash
+# against a local llama.cpp server (llama-server), open-loop, 20 req/s, 30s:
+./llmpace -backend llamacpp -url http://127.0.0.1:8080 -rps 20 -duration 30s
+
+# write raw per-request JSONL + a summary JSON alongside it:
+./llmpace -backend llamacpp -url http://127.0.0.1:8080 -output results/run1.jsonl
+
+# OpenAI-compatible or Ollama:
+./llmpace -backend openai -url http://127.0.0.1:8000 -model my-model -rps 10 -duration 30s
+./llmpace -backend ollama -url http://127.0.0.1:11434 -model llama3 -rps 10 -duration 30s
+
+# use your own prompts instead of the built-in default set:
+./llmpace -backend llamacpp -url http://127.0.0.1:8080 -prompts my-prompts.jsonl
+
+# a concurrency/rate sweep, appending each run's summary as one CSV row:
+for rps in 5 10 20 40; do
+  ./llmpace -backend llamacpp -url http://127.0.0.1:8080 -rps "$rps" -duration 30s \
+    -label "rps-$rps" -csv sweep.csv
+done
+```
+
+Example table output (from a real run against a local mock server):
+
+```
+llmpace run: run
+backend              llamacpp
+mode                 open-loop
+target               http://127.0.0.1:8099
+duration             2.0s
+requests             40 (0 errors, 0.0% error rate)
+throughput           19.51 req/s
+                         p50   p95   p99
+latency (naive)      ms  31.7  32.6  33.8
+latency (corrected)  ms  33.6  34.7  35.8
+queue delay          ms  2.1   -     2.2
+time to first token  ms  6.9   7.6   9.0
+inter-token latency  ms  6.3   6.4   6.5
+tokens/sec (mean)        158.42
+```
+
+If corrected p99 latency is more than 2x naive p99, a warning like this is
+appended:
+
+```
+WARNING: corrected p99 latency (912.4ms) is more than 2x naive p99 (410.1ms) — the target is likely overloaded; trust corrected, not naive, numbers
+```
+
+## Concepts
+
+**Open-loop vs. closed-loop dispatch.** Closed-loop mode runs N clients, each
+waiting for its response before sending the next request — the model of "N
+real users, each waiting for their answer." This makes `ScheduledAt ==
+SentAt` for every request by construction, so there is never a queueing gap
+to observe: naive and corrected latency come out numerically identical no
+matter how overloaded the backend is. Open-loop mode instead dispatches
+requests at a fixed nominal rate (`-rps`) regardless of how long previous
+requests take; if the backend can't keep up, requests pile up waiting for a
+free sender slot, and that wait shows up as queue delay. This is why
+open-loop is llmpace's default and closed-loop is opt-in (`-mode
+closed-loop`) — only open-loop mode can actually demonstrate coordinated
+omission.
+
+**Naive vs. corrected latency.** *Naive* latency is `DoneAt - SentAt` — the
+number you get if you only time from when a request actually went out.
+*Corrected* latency is `DoneAt - ScheduledAt` — what a real, constant-arrival
+population of users would have experienced, including time spent queued
+before dispatch even began. Reading only naive numbers under load is exactly
+what coordinated omission looks like from the inside: the backend appears to
+get *faster* as it saturates, because the requests that would have exposed
+the backlog haven't been sent yet.
+
+**TTFT and inter-token latency (ITL).** TTFT is the time from sending a
+request to the first streamed token arriving — dominated by queueing and
+prefill. ITL is the gap between each pair of consecutive token arrivals
+within one request's response — dominated by decode speed. llmpace reports
+ITL as a full p50/95/99 distribution across every token gap in the run, not
+a mean, because a mean hides exactly the kind of tail stall a user would
+notice mid-stream.
+
+**Reservoir sampling.** Holding every result from a multi-hour, high-QPS run
+in memory doesn't bound memory usage. Once a run exceeds `-max-samples`
+(default 100,000) requests, each metric's percentiles are computed over a
+uniform random sample of that size (Algorithm R) instead of the full set —
+below that many requests, the "sample" is just every value, so short local
+runs get exact percentiles for free.
+
+## CLI reference
+
+Run `./llmpace -h` for the authoritative list; summarized here:
+
+| Flag | Default | Description |
+|---|---|---|
+| `-backend` | `llamacpp` | Backend to target: `llamacpp`, `openai`, or `ollama` |
+| `-url` | `http://127.0.0.1:8080` | Base URL of the inference server (no path suffix — llmpace appends the backend-specific path) |
+| `-model` | `""` | Model name, sent in the request body for `openai`/`ollama` backends (llama.cpp's `/completion` doesn't need one) |
+| `-mode` | `open-loop` | `open-loop` (default) or `closed-loop` — see [Concepts](#concepts) |
+| `-concurrency` | `10` | Concurrent sender slots (open-loop) or concurrent clients (closed-loop) |
+| `-rps` | `10` | Target requests/sec, open-loop mode only |
+| `-duration` | `30s` | How long to run (Go duration syntax, e.g. `10m`, `1h`) |
+| `-prompts` | `""` | JSONL file with a `"prompt"` field per line, cycled round-robin. Empty uses a small built-in default set |
+| `-output` | `""` | Path to write raw per-request JSONL results. Also writes `<path-without-ext>_summary.json` |
+| `-csv` | `""` | Path to append a one-row CSV summary — write header once, append thereafter, so a sweep script can build a comparison table |
+| `-prometheus-out` | `""` | Path to write a Prometheus textfile-collector-format summary (static dump, not a live endpoint — see [Known limitations](#known-limitations)) |
+| `-max-tokens` | `128` | Max tokens requested per generation |
+| `-temperature` | `0.0` | Sampling temperature (0 = deterministic) |
+| `-request-timeout` | `60s` | Per-request HTTP timeout |
+| `-label` | `run` | Label recorded in output metadata and in the table header |
+| `-max-samples` | `100000` | Per-metric reservoir capacity — see [Concepts](#concepts) |
+
+## Backends
+
+| Backend | Endpoint | Wire format | Notes |
+|---|---|---|---|
+| `llamacpp` | `POST {url}/completion` | SSE, one `content`/`stop` JSON object per token | Matches `llama-server`'s native API. No `model` field needed |
+| `openai` | `POST {url}/v1/chat/completions` | SSE, OpenAI chunk format, terminated by `data: [DONE]` | Works against OpenAI itself, vLLM, TGI, or llama.cpp's own OpenAI-compatible route. Sends the prompt as a single user message |
+| `ollama` | `POST {url}/api/generate` | NDJSON, one `response`/`done` JSON object per line | `-model` is required — Ollama's API always needs a model name |
+
+All three adapters stream the response as it arrives — none of them buffer a
+full response body — since TTFT and inter-token latency only exist if tokens
+are observed as they arrive.
+
+## Output formats
+
+**Table** (stdout, always) — see the example under [Quickstart](#quickstart).
+
+**JSONL** (`-output`) — one line per request, e.g.:
+
+```json
+{"scheduled_at":"2026-07-13T14:48:02.305Z","sent_at":"2026-07-13T14:48:02.307Z","done_at":"2026-07-13T14:48:02.341Z","latency_ns":34209000,"corrected_latency_ns":36157501,"queue_delay_ns":1948501,"ttft_ns":9978833,"inter_token_gaps_ms":[5.67,6.47,5.63,6.46],"tokens_generated":5,"status_code":200}
+```
+
+**Summary JSON** (written alongside `-output` as `<name>_summary.json`) —
+run configuration plus every metric in the table, as JSON (field names like
+`naive_latency_p99_ms`, `corrected_latency_p99_ms`, `ttft_p50_ms`,
+`itl_p99_ms`, `coordinated_omission_warning`).
+
+**CSV** (`-csv`) — one row per run, header written once: `timestamp, label,
+backend, mode, target_url, concurrency, requests_per_second, duration_s, n,
+errors, error_rate, throughput_rps, naive_p50_ms, naive_p95_ms,
+naive_p99_ms, corrected_p50_ms, corrected_p95_ms, corrected_p99_ms,
+queue_delay_p50_ms, queue_delay_p99_ms, ttft_p50_ms, ttft_p95_ms,
+ttft_p99_ms, itl_p50_ms, itl_p95_ms, itl_p99_ms, tokens_per_second_mean,
+coordinated_omission_warning`. Meant for sweep scripts (see the
+[Quickstart](#quickstart) rps-sweep example) that need every run's summary
+in one comparable table.
+
+**Prometheus textfile** (`-prometheus-out`) — a static dump in
+`node_exporter` textfile-collector format (`llmpace_requests_total`,
+`llmpace_latency_ms{quantile="0.99",view="corrected"}`, `llmpace_ttft_ms`,
+`llmpace_itl_ms`, `llmpace_tokens_per_second_mean`, all labeled with
+`label`/`backend`/`mode`), for archival or scraping via a file-based target
+against `../../infrastructure/prometheus/prometheus.yml`.
+
+## Architecture
+
+```
+projects/llmpace/
+├── main.go                    CLI entry point, wires everything together
+└── internal/
+    ├── adapter/                backend-specific request building + response streaming
+    │   ├── adapter.go            Adapter interface
+    │   ├── llamacpp.go, openai.go, ollama.go
+    │   └── sse.go                shared SSE/NDJSON line-scanning helpers
+    ├── dispatch/                request scheduling
+    │   ├── sender.go              builds+sends+times one request end-to-end
+    │   ├── openloop.go            default mode
+    │   └── closedloop.go          opt-in mode
+    ├── stats/                   percentile engine
+    │   ├── reservoir.go            bounded-memory sampling (Algorithm R)
+    │   └── stats.go                Accumulator, Summary, divergence warning
+    ├── prompts/                 round-robin prompt source
+    ├── config/                  CLI flag parsing
+    └── report/                  table/JSON/CSV/Prometheus output
+```
+
+See [`ROADMAP.md`](ROADMAP.md) for the design rationale behind each package
+and what's planned but not yet built.
+
+## Testing
+
+```bash
+go test ./...     # all packages
+go vet ./...
+gofmt -l .         # should print nothing
+```
+
+Notable tests: `internal/dispatch/dispatch_test.go`'s
+`TestRunOpenLoop_QueueDelayGrowsUnderSaturation` is the concrete behavioral
+proof of the coordinated-omission mechanism (an artificially slow mock
+backend, asserting corrected latency exceeds naive latency once queueing
+occurs); `internal/stats/stats_test.go`'s
+`TestAccumulator_FlagsCoordinatedOmission` proves the divergence-warning
+logic the same way. Each adapter has `httptest`-based stream-termination
+tests (must stop at `stop:true` / `[DONE]` / `done:true`, not hang or
+over-count on trailing data after it).
+
+## Known limitations
+
+- **No YAML multi-stage config file.** Every run is single-stage,
+  single-backend, driven entirely by CLI flags. A sweep across
+  stages/backends needs an outer shell loop (see the
+  [Quickstart](#quickstart) example) rather than one `llmpace` invocation.
+- **No live Prometheus `/metrics` endpoint.** `-prometheus-out` writes a
+  static file after the run completes, not something scrapeable *during* a
+  long run.
+- **Closed-loop mode cannot demonstrate coordinated omission**, by
+  construction (see [Concepts](#concepts)) — it exists only for parity with
+  workloads that genuinely are "N fixed concurrent clients."
+- **No Gil Tene-style synthetic sample backfill** for closed-loop
+  coordinated-omission correction — open-loop-by-default already covers the
+  case this tool is built for.
+- **Not validated at real multi-hour/high-QPS scale.** The bounded-memory
+  reservoir mechanism is unit-tested up to 200k samples; a real soak run
+  against a live backend hasn't been executed yet.
+
+See [`ROADMAP.md`](ROADMAP.md) for the full list of what M4 still needs (CI,
+`CONTRIBUTING.md`, tagged release, cross-compiled binaries).
 
 ## Relationship to this repo
 
 Evolves `../../services/load-generator/`, this program's own Week 8 load
 tester. That tool's percentile engine and coordinated-omission dispatch
-mechanism are sound and are being carried forward; its HTTP client has no
-streaming support and is hardcoded to one gateway's request schema, which is
-the main reason this needs to be its own project rather than a patch. See
-`ROADMAP.md` for the exact reuse plan.
+mechanism are sound and were carried forward; its HTTP client had no
+streaming support and was hardcoded to one gateway's request schema, which
+is the main reason this needed to be its own project rather than a patch.
+See `ROADMAP.md` for the exact reuse plan and what's cited from where.
 
 ## License
 
-MIT — see [`../../LICENSE`](../../LICENSE).
+MIT — see [`LICENSE`](LICENSE) (this project's own copy) or the
+[repo root](../../LICENSE).
