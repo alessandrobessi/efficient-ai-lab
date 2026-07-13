@@ -457,3 +457,33 @@ per HTTP request the way an application-aware (L7) load balancer would. With onl
 handful of long-lived connections spread across a small number of backend pods, this
 can produce noticeably uneven load by chance alone — which is what Week 9.5 observed
 directly (a roughly 10x spread in per-pod work done).
+
+## Week 10 — SLM vs LLM
+
+**Paired effect size** — see Week 6's definition; Week 10 applies the same
+same-100-examples paired comparison between the CPU-SLM and Larger-Local systems
+(mean difference +0.115, Cohen's dz 0.37, bootstrap 95% CI excluding zero) to confirm
+the quality gain is real, not visual noise from two overlapping-looking confidence
+intervals.
+
+**Cost model** — a formula turning measured inputs (generation time, token counts)
+into a dollar estimate via price *constants* that must be supplied separately from
+the formula itself. Week 10's local-system costs use measured generation time × an
+hourly compute-cost placeholder; its frontier-system cost uses measured token counts
+× per-token price placeholders — the formula and measured inputs are real, but the
+price constants are explicitly illustrative, not verified current pricing (see the
+Week 10 README's limitations).
+
+**Qualitative dimension** — a comparison axis (privacy, operational complexity,
+deployment complexity, observability, failure modes) assessed by reasoning about how
+a system works, rather than by measuring a number from a benchmark run. Week 10
+uses this for the frontier API specifically, since it was deliberately not called
+live — e.g. "data leaves the premises" is a categorical, confidently-statable fact
+about any remote API, even without running one.
+
+**Architecture decision framing** — FULL-ROADMAP.md's explicit instruction for
+Phase IV: the question is not "which model/system is best" but "under which
+constraints does each become preferable." Week 10 answers this by pairing each
+system with the conditions under which its trade-offs actually win (e.g. CPU-SLM
+for latency-sensitive/concurrent workloads, Larger-Local for quality-sensitive
+self-hosted workloads) rather than ranking the three systems on one scale.

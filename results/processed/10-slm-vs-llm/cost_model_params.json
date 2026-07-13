@@ -1,0 +1,5 @@
+{
+  "local_compute_usd_per_hour": 0.1,
+  "frontier_input_usd_per_million_tokens": 1.0,
+  "frontier_output_usd_per_million_tokens": 5.0
+}

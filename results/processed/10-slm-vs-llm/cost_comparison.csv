@@ -1,0 +1,4 @@
+system,mean_total_time_s,mean_prompt_tokens,mean_completion_tokens,cost_per_request_usd,cost_per_1000_requests_usd
+CPU-SLM,1.045516,82.09,26.89,2.9042111111111113e-05,0.029042111111111112
+Larger-Local,4.530616,82.09,19.01,0.00012585044444444446,0.12585044444444446
+"Frontier-API (documented, not measured)",,82.09,26.89,0.00021654000000000004,0.21654000000000004

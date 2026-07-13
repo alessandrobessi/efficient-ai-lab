@@ -1,0 +1,2 @@
+comparison,mean_diff,cohens_dz,diff_ci95_lo,diff_ci95_hi
+Larger-Local - CPU-SLM,0.11531099999999998,0.3724721992768337,0.056765425,0.17773945

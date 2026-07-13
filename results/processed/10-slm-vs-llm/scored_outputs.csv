@@ -1,0 +1,363 @@
+system,params_b,id,category,language,score,detail,valid_json,output,expected,prompt_tokens,completion_tokens,ttft_s,total_time_s,decode_tokens_per_s
+CPU-SLM,1.5,classification-en-001,classification,en,1.0,exact_match,,positive,positive,80,2,0.527,0.5438,118.59
+CPU-SLM,1.5,classification-en-002,classification,en,1.0,exact_match,,negative,negative,81,2,0.2116,0.2276,125.25
+CPU-SLM,1.5,classification-en-003,classification,en,1.0,exact_match,,neutral,neutral,73,2,0.1624,0.1783,125.23
+CPU-SLM,1.5,classification-en-004,classification,en,1.0,exact_match,,technology,technology,88,2,0.2506,0.2668,122.93
+CPU-SLM,1.5,classification-en-005,classification,en,1.0,exact_match,,sports,sports,89,2,0.2663,0.2828,121.79
+CPU-SLM,1.5,classification-en-006,classification,en,1.0,exact_match,,business,business,86,2,0.263,0.2822,103.7
+CPU-SLM,1.5,classification-en-007,classification,en,1.0,exact_match,,health,health,87,2,0.2901,0.3076,114.25
+CPU-SLM,1.5,classification-en-008,classification,en,1.0,exact_match,,negative,negative,84,2,0.2722,0.2913,104.79
+CPU-SLM,1.5,classification-it-001,classification,it,1.0,exact_match,,positive,positive,99,2,0.5024,0.5232,96.6
+CPU-SLM,1.5,classification-it-002,classification,it,1.0,exact_match,,negative,negative,95,2,0.3749,0.3956,96.32
+CPU-SLM,1.5,classification-it-003,classification,it,1.0,exact_match,,neutral,neutral,88,2,0.3306,0.3528,89.76
+CPU-SLM,1.5,classification-it-004,classification,it,1.0,exact_match,,technology,technology,104,2,0.4802,0.5029,88.14
+CPU-SLM,1.5,classification-it-005,classification,it,1.0,exact_match,,sports,sports,96,2,0.4103,0.4332,87.36
+CPU-SLM,1.5,classification-it-006,classification,it,1.0,exact_match,,business,business,99,2,0.4338,0.4565,88.06
+CPU-SLM,1.5,classification-it-007,classification,it,1.0,exact_match,,health,health,100,2,0.4606,0.4832,88.52
+CPU-SLM,1.5,classification-it-008,classification,it,1.0,exact_match,,negative,negative,91,2,0.3579,0.38,90.58
+CPU-SLM,1.5,information_extraction-en-001,information_extraction,en,0.75,values_missing:date,True,"{
+  ""invoice_number"": ""4521"",
+  ""issued_to"": ""Maria Garcia"",
+  ""date"": ""July 14, 2025"",
+  ""total_amount"": ""$1,230.50""
+}","{""invoice_number"": ""4521"", ""customer"": ""Maria Garcia"", ""date"": ""2025-07-14"", ""total"": ""1230.50""}",86,54,0.7643,1.988,44.13
+CPU-SLM,1.5,information_extraction-en-002,information_extraction,en,0.3333,"values_missing:name,phone",True,"{
+  ""contact_method"": ""Email"",
+  ""email"": ""john.doe@example.com""
+}","{""name"": ""John Doe"", ""email"": ""john.doe@example.com"", ""phone"": ""(555) 123-4567""}",80,22,0.3291,0.8036,46.36
+CPU-SLM,1.5,information_extraction-en-003,information_extraction,en,1.0,all_values_found,True,"{
+  ""flight"": ""AA245"",
+  ""departure_gate"": ""12"",
+  ""departure_time"": ""14:30"",
+  ""arrival_city"": ""Chicago"",
+  ""arrival_time"": ""17:05""
+}","{""flight_number"": ""AA245"", ""gate"": ""12"", ""departure_time"": ""14:30"", ""destination"": ""Chicago"", ""arrival_time"": ""17:05""}",81,54,0.325,1.5753,43.19
+CPU-SLM,1.5,information_extraction-en-004,information_extraction,en,0.75,values_missing:hours,True,"{
+  ""date"": ""Monday and Wednesday"",
+  ""time"": ""9am to 1pm"",
+  ""location"": ""Riverside Clinic"",
+  ""doctor"": ""Dr. Emily Carter""
+}","{""doctor"": ""Dr. Emily Carter"", ""location"": ""Riverside Clinic"", ""days"": [""Monday"", ""Wednesday""], ""hours"": ""9am-1pm""}",74,44,0.2741,1.286,43.49
+CPU-SLM,1.5,information_extraction-en-005,information_extraction,en,0.6667,values_missing:end_date,True,"{
+  ""date"": ""2025-09-03"",
+  ""location"": ""Berlin"",
+  ""duration"": ""3 days""
+}","{""event_location"": ""Berlin"", ""start_date"": ""2025-09-03"", ""end_date"": ""2025-09-05""}",74,34,0.274,1.0415,44.3
+CPU-SLM,1.5,information_extraction-en-006,information_extraction,en,1.0,all_values_found,True,"{
+  ""order_number"": ""78910"",
+  ""shipping_method"": ""FedEx"",
+  ""estimated_delivery_days"": ""3-5 business days""
+}","{""order_number"": ""78910"", ""carrier"": ""FedEx"", ""eta_days"": ""3-5""}",73,37,0.2582,1.0933,44.31
+CPU-SLM,1.5,information_extraction-en-007,information_extraction,en,0.3333,"values_missing:address,month_sold",True,"{
+  ""street"": ""Elm Street"",
+  ""year_sold"": ""2024"",
+  ""price"": ""$375,000""
+}","{""address"": ""42 Elm Street"", ""price"": ""375000"", ""month_sold"": ""June 2024""}",77,36,0.3052,1.1232,44.01
+CPU-SLM,1.5,information_extraction-en-008,information_extraction,en,0.75,values_missing:attendee,True,"{
+  ""date"": ""Thursday"",
+  ""time"": ""10:00 AM"",
+  ""location"": ""Conference Room B""
+}","{""attendee"": ""Robert Chen"", ""day"": ""Thursday"", ""time"": ""10:00 AM"", ""location"": ""Conference Room B""}",70,31,0.2382,0.9346,44.51
+CPU-SLM,1.5,information_extraction-it-001,information_extraction,it,0.5,"values_missing:date,total",True,"{
+  ""fattura"": ""4521"",
+  ""emittente"": ""Maria Rossi"",
+  ""data_emissione"": ""14 luglio 2025"",
+  ""totale"": ""1.230,50 euro""
+}","{""invoice_number"": ""4521"", ""customer"": ""Maria Rossi"", ""date"": ""2025-07-14"", ""total"": ""1230.50""}",101,59,0.6231,1.947,44.57
+CPU-SLM,1.5,information_extraction-it-002,information_extraction,it,1.0,all_values_found,True,"{
+  ""fields"": [
+    ""name"",
+    ""email"",
+    ""phone""
+  ],
+  ""values"": [
+    ""Luca Bianchi"",
+    ""luca.bianchi@example.it"",
+    ""333 1234567""
+  ]
+}","{""name"": ""Luca Bianchi"", ""email"": ""luca.bianchi@example.it"", ""phone"": ""333 1234567""}",93,60,0.3792,1.7465,43.88
+CPU-SLM,1.5,information_extraction-it-003,information_extraction,it,1.0,all_values_found,True,"{
+  ""volo"": ""AZ310"",
+  ""partenza"": ""gate 7 alle 16:45"",
+  ""arrivo"": ""Roma alle 18:20""
+}","{""flight_number"": ""AZ310"", ""gate"": ""7"", ""departure_time"": ""16:45"", ""destination"": ""Roma"", ""arrival_time"": ""18:20""}",88,47,0.3387,1.4118,43.8
+CPU-SLM,1.5,information_extraction-it-004,information_extraction,it,0.5,"values_missing:doctor,hours",True,"{
+  ""date"": ""martedì e giovedì"",
+  ""time"": ""9 alle 13"",
+  ""day"": ""martedì e giovedì"",
+  ""doctor"": ""La dottoressa Chiara Ferrari"",
+  ""hospital"": ""l'Ambulatorio Centrale""
+}","{""doctor"": ""Dott.ssa Chiara Ferrari"", ""location"": ""Ambulatorio Centrale"", ""days"": [""martedì"", ""giovedì""], ""hours"": ""9-13""}",95,67,0.3985,1.9137,44.22
+CPU-SLM,1.5,information_extraction-it-005,information_extraction,it,0.3333,"values_missing:start_date,end_date",True,"{
+  ""dates"": ""3 al 5 settembre 2025"",
+  ""location"": ""Milano""
+}","{""event_location"": ""Milano"", ""start_date"": ""2025-09-03"", ""end_date"": ""2025-09-05""}",79,29,0.2587,0.8885,46.04
+CPU-SLM,1.5,information_extraction-it-006,information_extraction,it,1.0,all_values_found,True,"{
+  ""orders"": [
+    {
+      ""order_number"": ""78910"",
+      ""delivery_method"": ""BRT"",
+      ""delivery_estimate"": ""3-5 days""
+    }
+  ]
+}","{""order_number"": ""78910"", ""carrier"": ""BRT"", ""eta_days"": ""3-5""}",91,46,0.3548,1.4093,43.62
+CPU-SLM,1.5,information_extraction-it-007,information_extraction,it,0.6667,values_missing:month_sold,True,"{
+  ""data"": {
+    ""address"": ""via Verdi 42"",
+    ""price"": 375000,
+    ""sale_date"": ""2024-06""
+  }
+}","{""address"": ""via Verdi 42"", ""price"": ""375000"", ""month_sold"": ""giugno 2024""}",91,48,0.3686,1.4425,44.7
+CPU-SLM,1.5,information_extraction-it-008,information_extraction,it,0.75,values_missing:attendee,True,"{
+  ""date"": ""giovedì"",
+  ""time"": ""10:00"",
+  ""location"": ""Sala Riunioni B""
+}","{""attendee"": ""Roberto Colombo"", ""day"": ""giovedì"", ""time"": ""10:00"", ""location"": ""Sala Riunioni B""}",83,35,0.281,1.056,45.16
+CPU-SLM,1.5,structured_output-en-001,structured_output,en,1.0,all_fields_match,True,"{
+  ""name"": ""Alice"",
+  ""age"": 29
+}","{""name"": ""Alice"", ""age"": 29}",63,18,0.5741,0.9465,48.33
+CPU-SLM,1.5,structured_output-en-002,structured_output,en,1.0,all_fields_match,True,"{""city"": ""Paris"", ""country"": ""France""}","{""city"": ""Paris"", ""country"": ""France""}",62,13,0.2235,0.4837,49.96
+CPU-SLM,1.5,structured_output-en-003,structured_output,en,1.0,all_fields_match,True,"{
+  ""title"": ""1984"",
+  ""author"": ""George Orwell"",
+  ""year"": 1949
+}","{""title"": ""1984"", ""author"": ""George Orwell"", ""year"": 1949}",76,31,0.3684,1.0151,47.93
+CPU-SLM,1.5,structured_output-en-004,structured_output,en,1.0,list_match,True,"{
+  ""colors"": [""red"", ""blue"", ""yellow""]
+}","[""red"", ""blue"", ""yellow""]",58,16,0.1937,0.5148,49.84
+CPU-SLM,1.5,structured_output-en-005,structured_output,en,0.3333,"fields_wrong:price,in_stock",True,"{
+  ""product"": ""Laptop"",
+  ""price"": ""$999"",
+  ""in_stock"": ""currently available""
+}","{""product"": ""Laptop"", ""price"": 999, ""in_stock"": true}",70,29,0.2925,0.9401,44.78
+CPU-SLM,1.5,structured_output-en-006,structured_output,en,1.0,all_fields_match,True,"{""day"": ""Monday"", ""temperature_celsius"": 22}","{""day"": ""Monday"", ""temperature_celsius"": 22}",66,16,0.2606,0.5844,49.41
+CPU-SLM,1.5,structured_output-en-007,structured_output,en,1.0,all_fields_match,True,"{
+  ""first_name"": ""Tom"",
+  ""last_name"": ""Walker"",
+  ""email"": ""tom.walker@email.com""
+}","{""first_name"": ""Tom"", ""last_name"": ""Walker"", ""email"": ""tom.walker@email.com""}",70,30,0.2915,0.9166,48.0
+CPU-SLM,1.5,structured_output-en-008,structured_output,en,1.0,all_fields_match,True,"{
+  ""width"": 10,
+  ""height"": 5
+}","{""width"": 10, ""height"": 5}",66,18,0.2623,0.6308,48.85
+CPU-SLM,1.5,structured_output-it-001,structured_output,it,1.0,all_fields_match,True,"{
+  ""nome"": ""Alice"",
+  ""eta"": 29
+}","{""nome"": ""Alice"", ""eta"": 29}",64,18,0.2382,0.6058,48.96
+CPU-SLM,1.5,structured_output-it-002,structured_output,it,1.0,all_fields_match,True,"{
+  ""citta"": ""Parigi"",
+  ""paese"": ""Francia""
+}","{""citta"": ""Parigi"", ""paese"": ""Francia""}",69,21,0.276,0.7076,48.65
+CPU-SLM,1.5,structured_output-it-003,structured_output,it,1.0,all_fields_match,True,"{""titolo"": ""Il Nome della Rosa"", ""autore"": ""Umberto Eco"", ""anno"": 1980}","{""titolo"": ""Il Nome della Rosa"", ""autore"": ""Umberto Eco"", ""anno"": 1980}",86,30,0.428,1.0559,47.78
+CPU-SLM,1.5,structured_output-it-004,structured_output,it,0.0,list_mismatch,True,"{
+  ""colors"": [""red"", ""blue"", ""yellow""]
+}","[""rosso"", ""blu"", ""giallo""]",64,16,0.2526,0.5763,49.42
+CPU-SLM,1.5,structured_output-it-005,structured_output,it,0.3333,"fields_wrong:prezzo,disponibile",True,"{
+  ""prodotto"": ""Laptop"",
+  ""prezzo"": ""999 euro"",
+  ""disponibile"": ""attualmente disponibile""
+}","{""prodotto"": ""Laptop"", ""prezzo"": 999, ""disponibile"": true}",82,37,0.3058,1.1022,46.46
+CPU-SLM,1.5,structured_output-it-006,structured_output,it,1.0,all_fields_match,True,"{
+  ""giorno"": ""lunedì"",
+  ""temperatura_celsius"": 22
+}","{""giorno"": ""lunedì"", ""temperatura_celsius"": 22}",73,25,0.314,0.8336,48.12
+CPU-SLM,1.5,structured_output-it-007,structured_output,it,1.0,all_fields_match,True,"{
+  ""nome"": ""Tommaso"",
+  ""cognome"": ""Ferrari"",
+  ""email"": ""tommaso.ferrari@email.it""
+}","{""nome"": ""Tommaso"", ""cognome"": ""Ferrari"", ""email"": ""tommaso.ferrari@email.it""}",79,37,0.2924,1.0873,46.55
+CPU-SLM,1.5,structured_output-it-008,structured_output,it,1.0,all_fields_match,True,"{
+  ""larghezza"": 10,
+  ""altezza"": 5
+}","{""larghezza"": 10, ""altezza"": 5}",76,21,0.3311,0.7742,47.39
+CPU-SLM,1.5,summarization-en-001,summarization,en,0.1961,token_f1=0.20,,"Solar and wind power generation increased globally by 18%, driven by falling costs and government subsidies, with several countries now generating over a third of their electricity from renewables.","Renewable energy generation grew significantly last year due to lower costs and government support, with continued growth expected as storage technology improves.",103,35,0.9057,1.6386,47.76
+CPU-SLM,1.5,summarization-en-002,summarization,en,0.2979,token_f1=0.30,,"TechCorp reported a 12% increase in quarterly revenue of $2.4 billion, driven by strong cloud services demand, with profit margins improving slightly despite rising data center costs.","TechCorp's quarterly revenue rose 12% thanks to strong cloud demand, and its stock climbed after the earnings announcement.",107,38,0.6091,1.439,45.79
+CPU-SLM,1.5,summarization-en-003,summarization,en,0.6207,token_f1=0.62,,"Astronauts Neil Armstrong and Buzz Aldrin became the first humans to walk on the Moon as part of NASA's Apollo 11 mission on July 20, 1969, marking a major milestone in the space race.","Apollo 11's 1969 Moon landing made Armstrong and Aldrin the first humans on the Moon, a landmark moment in the space race.",115,51,0.6712,1.7826,45.89
+CPU-SLM,1.5,summarization-en-004,summarization,en,0.3256,token_f1=0.33,,"A new study indicates that insufficient sleep increases heart disease risk, supporting recommendations for adequate sleep.","A decade-long study found that sleeping under six hours a night raises heart disease risk, reinforcing the importance of getting seven to eight hours of sleep.",118,19,0.714,1.1061,48.46
+CPU-SLM,1.5,summarization-en-005,summarization,en,0.4889,token_f1=0.49,,"The visiting team won a dramatic 2-1 victory over the home team in the final minutes, with a late free kick goal.","The home team overturned an early deficit with two late goals, including a dramatic 88th-minute free kick, to win 2-1.",111,28,0.6267,1.2086,48.12
+CPU-SLM,1.5,summarization-en-006,summarization,en,0.5455,token_f1=0.55,,"The city council approved a free public bus plan funded by a downtown parking tax, aiming to reduce congestion and emissions, but some business owners are critical.","The city will make buses free next year, funded by a new downtown parking tax meant to cut traffic and emissions, though some business owners oppose the tax.",99,31,0.5254,1.1784,47.47
+CPU-SLM,1.5,summarization-en-007,summarization,en,0.5,token_f1=0.50,,"A new exoplanet, roughly 1.5 times Earth-sized and taking 200 days to orbit its star, has been discovered 40 light-years away, potentially hosting liquid water.","Astronomers found a potentially habitable exoplanet 40 light-years away, about 1.5 times Earth's size, and plan further studies of its atmosphere.",117,42,0.6961,1.6044,46.24
+CPU-SLM,1.5,summarization-en-008,summarization,en,0.439,token_f1=0.44,,"A young detective in 1920s London investigates a theft while uncovering a police force conspiracy, ultimately testifying before a tribunal.","A 1920s London detective uncovers police corruption while investigating a small theft, ultimately risking her career to testify against corrupt colleagues.",109,30,0.6182,1.2623,46.58
+CPU-SLM,1.5,summarization-it-001,summarization,it,0.0312,token_f1=0.03,,"Global solar and wind energy production increased by 18% last year due to lower installation costs and government incentives, with Germany and India now generating over a third of their electricity from renewable sources.","La produzione di energia rinnovabile è cresciuta molto lo scorso anno grazie a costi più bassi e incentivi statali, con una crescita futura attesa grazie ai progressi nell'accumulo energetico.",155,40,1.1183,1.9809,46.37
+CPU-SLM,1.5,summarization-it-002,summarization,it,0.1053,token_f1=0.11,,"TechCorp reported a quarterly revenue of $2.4 billion, up 12% from the same period last year, driven by cloud service demand. Profit margins improved slightly despite cost increases for data centers.","Il fatturato trimestrale di TechCorp è cresciuto del 12% grazie alla domanda di servizi cloud, e il titolo è salito dopo l'annuncio dei risultati.",145,43,0.9004,1.8484,45.36
+CPU-SLM,1.5,summarization-it-003,summarization,it,0.1887,token_f1=0.19,,"Neil Armstrong and Buzz Aldrin became the first humans to walk on the Moon during the Apollo 11 mission on July 20, 1969, watched live by millions worldwide.","Lo sbarco sulla Luna dell'Apollo 11 nel 1969 rese Armstrong e Aldrin i primi uomini sulla Luna, un momento cruciale della corsa allo spazio.",148,41,0.9243,1.8222,45.66
+CPU-SLM,1.5,summarization-it-004,summarization,it,0.0317,token_f1=0.03,,"A study of 5,000 adults over ten years found that sleeping less than six hours per night significantly increases the risk of cardiovascular diseases compared to seven to eight hours, with no additional benefits beyond nine hours.","Uno studio decennale ha rilevato che dormire meno di sei ore aumenta il rischio cardiaco, confermando l'importanza di dormire sette-otto ore a notte.",162,45,1.1338,2.1401,44.72
+CPU-SLM,1.5,summarization-it-005,summarization,it,0.0889,token_f1=0.09,,"The home team won 2-1 in the second half with a late penalty goal, reversing the first half's deficit.","La squadra di casa ha ribaltato uno svantaggio iniziale con due gol nel finale, incluso un gol su punizione all'88', vincendo 2-1.",132,26,0.798,1.3516,46.96
+CPU-SLM,1.5,summarization-it-006,summarization,it,0.0278,token_f1=0.03,,"The municipal council has approved a plan to make all public buses free starting next year, funded by a new parking fee tax, with the aim of reducing traffic and emissions. Some local merchants have criticized the new parking fee as unfair.","La città renderà gratuiti gli autobus dal prossimo anno grazie a una nuova tassa sui parcheggi del centro, pensata per ridurre traffico ed emissioni, nonostante le critiche di alcuni commercianti.",140,47,1.0123,2.1887,39.95
+CPU-SLM,1.5,summarization-it-007,summarization,it,0.5172,token_f1=0.52,,"Astronomi hanno descritto un nuovo esopianeta di 1,5 volte la Terra, in orbita attorno a una stella a 40 anni luce di distanza, potenzialmente con acqua liquida in superficie.","Gli astronomi hanno scoperto un esopianeta potenzialmente abitabile a 40 anni luce, circa 1,5 volte le dimensioni della Terra, da studiare in futuro per la sua atmosfera.",158,56,1.2042,2.4768,44.01
+CPU-SLM,1.5,summarization-it-008,summarization,it,0.0,token_f1=0.00,,"A young investigator in 1920s London uncovers a corrupt police conspiracy while investigating a seemingly minor theft, ultimately deciding to testify against corrupt colleagues at great personal cost.","Un'investigatrice nella Londra degli anni '20 scopre la corruzione della polizia indagando su un piccolo furto, rischiando la carriera per testimoniare contro i colleghi corrotti.",155,37,0.9889,1.8154,44.77
+CPU-SLM,1.5,reasoning-en-001,reasoning,en,0.0,numeric_mismatch,,"To find out how many kilometers the train travels in 1 hour, we first determine the speed of the train. The speed is calculated by dividing the distance traveled by the time taken. 
+
+Given that the train travels 60 kilometers in 1.5 hours, the speed is:
+
+\[ \text{Speed} = \frac{\text{Distance}}{\text{Time}} = \frac{60 \text{ km}}{1.5 \text{ hours}} = 40 \text{ km/h} \]
+
+Now, to find out how many kilometers the train travels in 1 hour, we use the speed we just calculated:
+
+\[ \text{Distance in 1 hour} = \text{Speed} \times 1 \text{ hour} = 40 \text{ km/h} \times 1 \text{ hour} = 40 \text{ km} \]
+
+Therefore, the train travels 40 kilometers in 1 hour.",40,67,203,0.6183,6.0214,37.57
+CPU-SLM,1.5,reasoning-en-002,reasoning,en,1.0,numeric_match,,"3 boxes * 8 apples/box = 24 apples
+24 apples - 5 apples = 19 apples
+
+Sara has 19 apples left.",19,64,37,0.3507,1.3502,37.02
+CPU-SLM,1.5,reasoning-en-003,reasoning,en,1.0,numeric_match,,"Sale price = Original price - (Original price * Discount rate)
+Sale price = $40 - ($40 * 0.25)
+Sale price = $40 - $10
+Sale price = $30",$30,60,48,0.303,1.6639,35.27
+CPU-SLM,1.5,reasoning-en-004,reasoning,en,0.0,day_mismatch_or_missing,,"If today is Wednesday, in 10 days it will be a Friday.",Saturday,56,17,0.2568,0.6737,40.77
+CPU-SLM,1.5,reasoning-en-005,reasoning,en,1.0,numeric_match,,"Area = length × width
+Area = 8 meters × 5 meters
+Area = 40 square meters",40 square meters,56,24,0.2549,0.9878,32.75
+CPU-SLM,1.5,reasoning-en-006,reasoning,en,1.0,numeric_match,,Tom is 14 years old.,14,59,9,0.3111,0.5138,44.41
+CPU-SLM,1.5,reasoning-en-007,reasoning,en,1.0,numeric_match,,"To solve this, first find the amount of flour needed for one cookie by dividing the total cups by the total number of cookies: 2 cups / 12 cookies = 1/6 cup per cookie. Then multiply this amount by the number of cookies needed: (1/6 cup/cookie) * 30 cookies = 5 cups. Therefore, the answer is 5.",5,62,81,0.3354,2.5632,36.36
+CPU-SLM,1.5,reasoning-en-008,reasoning,en,1.0,numeric_match,,"To solve this, we first determine the total amount of work done by 3 workers in 6 days. Since the rate per worker is the same, we can use the formula: total work = number of workers * days * rate per worker. 
+
+For 3 workers in 6 days, the total work is 3 * 6 * rate per worker. 
+
+Now, if we have 6 workers, we can set up the equation: total work = 6 * days * rate per worker. 
+
+Since the total work remains the same, we can equate the two expressions: 3 * 6 * rate per worker = 6 * days * rate per worker. 
+
+Solving for days, we get: days = 3 * 6 / 6 = 3 days.
+
+Therefore, it would take 6 workers 3 days to build the wall.",3,67,180,0.3879,5.174,37.61
+CPU-SLM,1.5,reasoning-en-009,reasoning,en,1.0,numeric_match,,"50 liters / 5 liters per 100 km = 10 sets of 100 km
+10 sets * 100 km = 1000 km
+
+The car can travel 1000 km on a full tank.",1000 km,71,58,0.5069,2.1108,36.16
+CPU-SLM,1.5,reasoning-it-001,reasoning,it,1.0,numeric_match,,40 chilometri,40,77,7,0.4834,0.6327,46.87
+CPU-SLM,1.5,reasoning-it-002,reasoning,it,1.0,numeric_match,,"Sara ha 3 scatole con 8 mele ciascuna, quindi ha in totale 3 * 8 = 24 mele.
+Regala 5 mele, quindi le restano 24 - 5 = 19 mele.",19,70,60,0.4109,1.9141,39.91
+CPU-SLM,1.5,reasoning-it-003,reasoning,it,1.0,numeric_match,,"40 * 0.25 = 10 euro sconto
+40 - 10 = 30 euro scontato",30 euro,65,31,0.3246,1.0963,40.17
+CPU-SLM,1.5,reasoning-it-004,reasoning,it,0.0,day_mismatch_or_missing,,Lunedì,sabato,58,4,0.2509,0.3246,54.26
+CPU-SLM,1.5,reasoning-it-005,reasoning,it,0.0,numeric_mismatch,,20 metri quadrati,40 metri quadrati,65,7,0.3182,0.4618,48.76
+CPU-SLM,1.5,reasoning-it-006,reasoning,it,1.0,numeric_match,,"Tommaso ha il doppio degli anni di sua sorella, quindi:
+7 (anni di sua sorella) x 2 = 14 anni
+
+Tommaso ha 14 anni.",14,69,44,0.3435,1.4722,38.98
+CPU-SLM,1.5,reasoning-it-007,reasoning,it,0.0,numeric_mismatch,,"2 tazze per 12 biscotti, quindi per 30 biscotti servono 3 tazze.",5,72,27,0.4144,1.0801,40.55
+CPU-SLM,1.5,reasoning-it-008,reasoning,it,0.0,numeric_mismatch,,12,3,78,3,0.4529,0.5004,63.09
+CPU-SLM,1.5,reasoning-it-009,reasoning,it,0.0,numeric_mismatch,,"50 litri / 5 litri/km = 10 km
+
+Quindi, con il serbatoio pieno, l'auto può percorrere 10 km.",1000 km,79,42,0.4954,1.8018,32.15
+CPU-SLM,1.5,instruction_following-en-001,instruction_following,en,1.0,correct,,YES,YES,55,2,0.6268,0.6518,80.02
+CPU-SLM,1.5,instruction_following-en-002,instruction_following,en,1.0,correct,,cold,Cold,50,2,0.2244,0.2494,79.99
+CPU-SLM,1.5,instruction_following-en-003,instruction_following,en,0.0,format_ok_content_wrong,,"apple, banana, cherry","apple, banana, orange",48,6,0.1892,0.3133,48.32
+CPU-SLM,1.5,instruction_following-en-004,instruction_following,en,1.0,correct,,366,366,54,4,0.2729,0.3484,52.94
+CPU-SLM,1.5,instruction_following-en-005,instruction_following,en,1.0,correct,,Capital: Tokyo,Capital: Tokyo,55,4,0.2536,0.3282,53.63
+CPU-SLM,1.5,instruction_following-en-006,instruction_following,en,1.0,correct,,JUPITER,JUPITER,51,4,0.2172,0.293,52.77
+CPU-SLM,1.5,instruction_following-en-007,instruction_following,en,1.0,correct,,❤️,❤️,50,3,0.2116,0.2588,63.56
+CPU-SLM,1.5,instruction_following-en-008,instruction_following,en,1.0,correct,,true,true,63,2,0.3038,0.3264,88.44
+CPU-SLM,1.5,instruction_following-en-009,instruction_following,en,1.0,correct,,"red, blue","red, blue",55,4,0.2293,0.2984,57.93
+CPU-SLM,1.5,instruction_following-it-001,instruction_following,it,0.0,format_ok_content_wrong,,NO,SÌ,65,2,0.3469,0.3702,85.64
+CPU-SLM,1.5,instruction_following-it-002,instruction_following,it,1.0,correct,,Freddo,Freddo,55,4,0.1988,0.2822,48.01
+CPU-SLM,1.5,instruction_following-it-003,instruction_following,it,0.0,format_ok_content_wrong,,"uva, banana, limone","mela, banana, arancia",57,8,0.3104,0.494,43.58
+CPU-SLM,1.5,instruction_following-it-004,instruction_following,it,1.0,correct,,366,366,58,4,0.3092,0.3839,53.54
+CPU-SLM,1.5,instruction_following-it-005,instruction_following,it,1.0,correct,,Capitale: Tokyo,Capitale: Tokyo,67,6,0.3455,0.4697,48.31
+CPU-SLM,1.5,instruction_following-it-006,instruction_following,it,0.0,content_and_format_wrong,,IL PIANETA MIGLIORE DEL SISTEMA SOLARE È VENUS.,GIOVE,58,21,0.2658,0.7718,41.51
+CPU-SLM,1.5,instruction_following-it-007,instruction_following,it,1.0,correct,,❤️,❤️,58,3,0.2758,0.3238,62.52
+CPU-SLM,1.5,instruction_following-it-008,instruction_following,it,0.0,format_ok_content_wrong,,falso,vero,76,3,0.4065,0.4554,61.31
+CPU-SLM,1.5,instruction_following-it-009,instruction_following,it,1.0,correct,,"rosso, blu","rosso, blu",65,5,0.3036,0.4025,50.59
+Larger-Local,7.0,classification-en-001,classification,en,1.0,exact_match,,positive,positive,80,2,3.0148,3.2907,7.25
+Larger-Local,7.0,classification-en-002,classification,en,1.0,exact_match,,negative,negative,81,2,1.4853,1.5885,19.39
+Larger-Local,7.0,classification-en-003,classification,en,1.0,exact_match,,neutral,neutral,73,2,1.1794,1.2812,19.65
+Larger-Local,7.0,classification-en-004,classification,en,1.0,exact_match,,technology,technology,88,2,1.8245,1.9232,20.27
+Larger-Local,7.0,classification-en-005,classification,en,1.0,exact_match,,sports,sports,89,2,1.8479,1.9484,19.9
+Larger-Local,7.0,classification-en-006,classification,en,1.0,exact_match,,business,business,86,2,1.6993,1.7976,20.35
+Larger-Local,7.0,classification-en-007,classification,en,1.0,exact_match,,health,health,87,2,1.8529,1.9526,20.07
+Larger-Local,7.0,classification-en-008,classification,en,1.0,exact_match,,negative,negative,84,2,1.6006,1.701,19.93
+Larger-Local,7.0,classification-it-001,classification,it,1.0,exact_match,,positive,positive,99,2,2.6943,2.7915,20.58
+Larger-Local,7.0,classification-it-002,classification,it,1.0,exact_match,,negative,negative,95,2,1.9578,2.059,19.75
+Larger-Local,7.0,classification-it-003,classification,it,1.0,exact_match,,neutral,neutral,88,2,1.6615,1.7708,18.3
+Larger-Local,7.0,classification-it-004,classification,it,1.0,exact_match,,technology,technology,104,2,2.3699,2.4884,16.88
+Larger-Local,7.0,classification-it-005,classification,it,1.0,exact_match,,sports,sports,96,2,2.05,2.1733,16.22
+Larger-Local,7.0,classification-it-006,classification,it,1.0,exact_match,,business,business,99,2,2.1619,2.2801,16.92
+Larger-Local,7.0,classification-it-007,classification,it,1.0,exact_match,,health,health,100,2,2.2222,2.3227,19.9
+Larger-Local,7.0,classification-it-008,classification,it,1.0,exact_match,,negative,negative,91,2,1.7781,1.8795,19.73
+Larger-Local,7.0,information_extraction-en-001,information_extraction,en,0.75,values_missing:date,True,"{""Invoice_Number"":""4521"", ""Recipient"":""Maria Garcia"", ""Date"":""July 14, 2025"", ""Total_Amount"":""$1,230.50""}","{""invoice_number"": ""4521"", ""customer"": ""Maria Garcia"", ""date"": ""2025-07-14"", ""total"": ""1230.50""}",86,45,3.8541,8.9247,8.87
+Larger-Local,7.0,information_extraction-en-002,information_extraction,en,1.0,all_values_found,True,"{""name"": ""John Doe"", ""email"": ""john.doe@example.com"", ""phone"": ""(555) 123-4567""}","{""name"": ""John Doe"", ""email"": ""john.doe@example.com"", ""phone"": ""(555) 123-4567""}",80,36,1.809,5.8316,8.95
+Larger-Local,7.0,information_extraction-en-003,information_extraction,en,1.0,all_values_found,True,"{""flight_number"":""AA245"",""departure_gate"":""12"",""departure_time"":""14:30"",""arrival_city"":""Chicago"",""arrival_time"":""17:05""}","{""flight_number"": ""AA245"", ""gate"": ""12"", ""departure_time"": ""14:30"", ""destination"": ""Chicago"", ""arrival_time"": ""17:05""}",81,39,1.811,6.2601,8.77
+Larger-Local,7.0,information_extraction-en-004,information_extraction,en,0.75,values_missing:hours,True,"{""name"": ""Dr. Emily Carter"", ""location"": ""Riverside Clinic"", ""days"": [""Monday"", ""Wednesday""], ""time"": ""9am to 1pm""}","{""doctor"": ""Dr. Emily Carter"", ""location"": ""Riverside Clinic"", ""days"": [""Monday"", ""Wednesday""], ""hours"": ""9am-1pm""}",74,39,1.4441,5.8301,8.89
+Larger-Local,7.0,information_extraction-en-005,information_extraction,en,0.3333,"values_missing:start_date,end_date",True,"{""city"": ""Berlin"", ""date"": ""September 3rd to September 5th, 2025"", ""event"": ""conference""}","{""event_location"": ""Berlin"", ""start_date"": ""2025-09-03"", ""end_date"": ""2025-09-05""}",74,33,1.4456,5.0959,9.04
+Larger-Local,7.0,information_extraction-en-006,information_extraction,en,1.0,all_values_found,True,"{""order_id"": ""78910"", ""shipping_method"": ""FedEx"", ""estimated_delivery"": ""3-5 business days""}","{""order_number"": ""78910"", ""carrier"": ""FedEx"", ""eta_days"": ""3-5""}",73,31,1.3679,4.9525,8.65
+Larger-Local,7.0,information_extraction-en-007,information_extraction,en,1.0,all_values_found,True,"{""address"": ""42 Elm Street"", ""sale_price"": ""$375,000"", ""sale_month_year"": ""June 2024""}","{""address"": ""42 Elm Street"", ""price"": ""375000"", ""month_sold"": ""June 2024""}",77,36,1.5992,5.6979,8.78
+Larger-Local,7.0,information_extraction-en-008,information_extraction,en,1.0,all_values_found,True,"{""key"": ""Meeting scheduled"", ""person"": ""Robert Chen"", ""date"": ""Thursday"", ""time"": ""10:00 AM"", ""location"": ""Conference Room B""}","{""attendee"": ""Robert Chen"", ""day"": ""Thursday"", ""time"": ""10:00 AM"", ""location"": ""Conference Room B""}",70,40,1.2826,6.7075,7.37
+Larger-Local,7.0,information_extraction-it-001,information_extraction,it,0.5,"values_missing:date,total",True,"{""fattura_numero"":""4521"",""nome"":""Maria Rossi"",""data"":""14 luglio 2025"",""totale"":""1.230,50 euro""}","{""invoice_number"": ""4521"", ""customer"": ""Maria Rossi"", ""date"": ""2025-07-14"", ""total"": ""1230.50""}",101,42,5.985,14.0877,5.18
+Larger-Local,7.0,information_extraction-it-002,information_extraction,it,1.0,all_values_found,True,"{""name"": ""Luca Bianchi"", ""email"": ""luca.bianchi@example.it"", ""phone"": ""333 1234567""}","{""name"": ""Luca Bianchi"", ""email"": ""luca.bianchi@example.it"", ""phone"": ""333 1234567""}",93,38,2.316,6.9522,8.2
+Larger-Local,7.0,information_extraction-it-003,information_extraction,it,1.0,all_values_found,True,"{""flight"": ""AZ310"", ""departure_gate"": ""7"", ""departure_time"": ""16:45"", ""arrival_time"": ""18:20"", ""destination"": ""Roma""}","{""flight_number"": ""AZ310"", ""gate"": ""7"", ""departure_time"": ""16:45"", ""destination"": ""Roma"", ""arrival_time"": ""18:20""}",88,46,2.1208,8.319,7.42
+Larger-Local,7.0,information_extraction-it-004,information_extraction,it,0.5,"values_missing:doctor,hours",True,"{""nome"": ""dottoressa Chiara Ferrari"", ""giorni"": [""martedì"", ""giovedì""], ""orario"": ""da 9 alle 13"", ""ubicazione"": ""Ambulatorio Centrale""}","{""doctor"": ""Dott.ssa Chiara Ferrari"", ""location"": ""Ambulatorio Centrale"", ""days"": [""martedì"", ""giovedì""], ""hours"": ""9-13""}",95,52,2.4362,8.7931,8.18
+Larger-Local,7.0,information_extraction-it-005,information_extraction,it,0.3333,"values_missing:start_date,end_date",True,"{""location"":""Milano"",""date"":""3-5 settembre 2025"",""event"":""conferenza""}","{""event_location"": ""Milano"", ""start_date"": ""2025-09-03"", ""end_date"": ""2025-09-05""}",79,27,1.6077,4.7443,8.61
+Larger-Local,7.0,information_extraction-it-006,information_extraction,it,1.0,all_values_found,True,"{""order_number"":""78910"",""shipping_method"":""BRT"",""estimated_delivery"":""3-5 giorni lavorativi""}","{""order_number"": ""78910"", ""carrier"": ""BRT"", ""eta_days"": ""3-5""}",91,28,2.1394,5.4195,8.54
+Larger-Local,7.0,information_extraction-it-007,information_extraction,it,0.6667,values_missing:price,True,"{""address"": ""via Verdi 42"", ""price"": ""375.000 euro"", ""date"": ""giugno 2024""}","{""address"": ""via Verdi 42"", ""price"": ""375000"", ""month_sold"": ""giugno 2024""}",91,38,2.2261,6.9001,8.13
+Larger-Local,7.0,information_extraction-it-008,information_extraction,it,1.0,all_values_found,True,"{""nome"": ""Roberto Colombo"", ""giorno"": ""giovedì"", ""ora"": ""10:00"", ""luogo"": ""Sala Riunioni B""}","{""attendee"": ""Roberto Colombo"", ""day"": ""giovedì"", ""time"": ""10:00"", ""location"": ""Sala Riunioni B""}",83,41,1.7365,6.7649,8.15
+Larger-Local,7.0,structured_output-en-001,structured_output,en,1.0,all_fields_match,True,"{""name"": ""Alice"", ""age"": 29}","{""name"": ""Alice"", ""age"": 29}",63,14,3.427,4.9617,9.12
+Larger-Local,7.0,structured_output-en-002,structured_output,en,1.0,all_fields_match,True,"{""city"":""Paris"",""country"":""France""}","{""city"": ""Paris"", ""country"": ""France""}",62,10,1.3953,2.4875,9.16
+Larger-Local,7.0,structured_output-en-003,structured_output,en,1.0,all_fields_match,True,"{""title"":""1984"",""author"":""George Orwell"",""year"":1949}","{""title"": ""1984"", ""author"": ""George Orwell"", ""year"": 1949}",76,21,2.2003,4.6272,8.65
+Larger-Local,7.0,structured_output-en-004,structured_output,en,1.0,list_match,True,"{""colors"":[""red"",""blue"",""yellow""]}","[""red"", ""blue"", ""yellow""]",58,10,1.2234,2.7209,6.68
+Larger-Local,7.0,structured_output-en-005,structured_output,en,1.0,all_fields_match,True,"{""product"":""Laptop"",""price"":999,""in_stock"":true}","{""product"": ""Laptop"", ""price"": 999, ""in_stock"": true}",70,18,1.7679,3.8343,8.71
+Larger-Local,7.0,structured_output-en-006,structured_output,en,1.0,all_fields_match,True,"{""day"": ""Monday"", ""temperature_celsius"": 22}","{""day"": ""Monday"", ""temperature_celsius"": 22}",66,16,1.6528,3.4652,8.83
+Larger-Local,7.0,structured_output-en-007,structured_output,en,1.0,all_fields_match,True,"{""first_name"":""Tom"",""last_name"":""Walker"",""email"":""tom.walker@email.com""}","{""first_name"": ""Tom"", ""last_name"": ""Walker"", ""email"": ""tom.walker@email.com""}",70,20,1.4911,3.8395,8.52
+Larger-Local,7.0,structured_output-en-008,structured_output,en,1.0,all_fields_match,True,"{""width"":10,""height"":5}","{""width"": 10, ""height"": 5}",66,11,1.6172,2.9134,8.49
+Larger-Local,7.0,structured_output-it-001,structured_output,it,1.0,all_fields_match,True,"{""nome"":""Alice"",""eta"":29}","{""nome"": ""Alice"", ""eta"": 29}",64,11,1.5181,2.708,9.24
+Larger-Local,7.0,structured_output-it-002,structured_output,it,1.0,all_fields_match,True,"{""citta"":""Parigi"",""paese"":""Francia""}","{""citta"": ""Parigi"", ""paese"": ""Francia""}",69,14,1.6957,3.2641,8.93
+Larger-Local,7.0,structured_output-it-003,structured_output,it,1.0,all_fields_match,True,"{""titolo"":""Il Nome della Rosa"",""autore"":""Umberto Eco"",""anno"":1980}","{""titolo"": ""Il Nome della Rosa"", ""autore"": ""Umberto Eco"", ""anno"": 1980}",86,25,2.651,5.6336,8.38
+Larger-Local,7.0,structured_output-it-004,structured_output,it,1.0,list_match,True,"{""primaries"": [""rosso"", ""blu"", ""giallo""]}","[""rosso"", ""blu"", ""giallo""]",64,17,1.8861,3.7695,9.03
+Larger-Local,7.0,structured_output-it-005,structured_output,it,0.3333,"fields_wrong:prezzo,disponibile",True,"{""prodotto"":""Laptop"",""prezzo"":""999 euro"",""disponibile"":""attualmente disponibile""}","{""prodotto"": ""Laptop"", ""prezzo"": 999, ""disponibile"": true}",82,27,1.8823,5.016,8.62
+Larger-Local,7.0,structured_output-it-006,structured_output,it,1.0,all_fields_match,True,"{""giorno"":""lunedì"",""temperatura_celsius"":22}","{""giorno"": ""lunedì"", ""temperatura_celsius"": 22}",73,18,1.9118,3.8986,9.06
+Larger-Local,7.0,structured_output-it-007,structured_output,it,1.0,all_fields_match,True,"{""nome"":""Tommaso"",""cognome"":""Ferrari"",""email"":""tommaso.ferrari@email.it""}","{""nome"": ""Tommaso"", ""cognome"": ""Ferrari"", ""email"": ""tommaso.ferrari@email.it""}",79,27,1.7974,4.9146,8.66
+Larger-Local,7.0,structured_output-it-008,structured_output,it,1.0,all_fields_match,True,"{""larghezza"": 10, ""altezza"": 5}","{""larghezza"": 10, ""altezza"": 5}",76,17,1.9923,3.8797,9.01
+Larger-Local,7.0,summarization-en-001,summarization,en,0.4068,token_f1=0.41,,"Solar and wind power generation grew by 18% globally last year, fueled by declining equipment costs, new subsidies, and increasing adoption in countries like Germany and India, with expectations of continued growth due to cheaper battery storage.","Renewable energy generation grew significantly last year due to lower costs and government support, with continued growth expected as storage technology improves.",103,46,5.2962,10.7613,8.42
+Larger-Local,7.0,summarization-en-002,summarization,en,0.3636,token_f1=0.36,,"TechCorp's quarterly revenue grew 12% to $2.4 billion, fueled by cloud services demand, with profit margins improving slightly despite increased data center costs.","TechCorp's quarterly revenue rose 12% thanks to strong cloud demand, and its stock climbed after the earnings announcement.",107,35,3.455,7.5178,8.61
+Larger-Local,7.0,summarization-en-003,summarization,en,0.6122,token_f1=0.61,,"On July 20, 1969, Neil Armstrong and Buzz Aldrin became the first humans to walk on the Moon, marking a significant milestone in the space race.","Apollo 11's 1969 Moon landing made Armstrong and Aldrin the first humans on the Moon, a landmark moment in the space race.",115,38,3.828,8.3729,8.36
+Larger-Local,7.0,summarization-en-004,summarization,en,0.5161,token_f1=0.52,,"People who sleep less than six hours a night have a higher risk of heart disease compared to those who sleep seven to eight hours, according to a ten-year study of 5,000 adults.","A decade-long study found that sleeping under six hours a night raises heart disease risk, reinforcing the importance of getting seven to eight hours of sleep.",118,42,4.0819,8.9955,8.55
+Larger-Local,7.0,summarization-en-005,summarization,en,0.4167,token_f1=0.42,,"The home team secured a 2-1 victory with a late free-kick goal, securing fan celebrations well into the night after coming back from behind.","The home team overturned an early deficit with two late goals, including a dramatic 88th-minute free kick, to win 2-1.",111,32,3.5983,7.2585,8.74
+Larger-Local,7.0,summarization-en-006,summarization,en,0.7812,token_f1=0.78,,"The city council will make public buses free starting next year, funded by a new tax on downtown parking garages, aimed at reducing traffic congestion and carbon emissions, though some business owners oppose the new tax.","The city will make buses free next year, funded by a new downtown parking tax meant to cut traffic and emissions, though some business owners oppose the tax.",99,42,3.1412,8.0177,8.61
+Larger-Local,7.0,summarization-en-007,summarization,en,0.566,token_f1=0.57,,"Astronomers have discovered a potentially habitable exoplanet, 1.5 times the size of Earth, orbiting a star 40 light-years away in a zone where liquid water could exist.","Astronomers found a potentially habitable exoplanet 40 light-years away, about 1.5 times Earth's size, and plan further studies of its atmosphere.",117,44,3.9705,9.0884,8.6
+Larger-Local,7.0,summarization-en-008,summarization,en,0.4211,token_f1=0.42,,"A young detective in 1920s London uncovers a police conspiracy through her investigation of a theft, leading her to choose between exposing corruption and protecting her career, with her testimony before a tribunal as the resolution.","A 1920s London detective uncovers police corruption while investigating a small theft, ultimately risking her career to testify against corrupt colleagues.",109,46,3.4969,8.8448,8.6
+Larger-Local,7.0,summarization-it-001,summarization,it,0.3333,token_f1=0.33,,"La produzione di energia solare ed eolica ha cresciuto del 18% globalmente, grazie a ridotti costi e nuovi incentivi, con Germania e India che generano ora oltre un terzo della propria elettricità da fonti rinnovabili, e gli analisti prevedono una continua crescita.","La produzione di energia rinnovabile è cresciuta molto lo scorso anno grazie a costi più bassi e incentivi statali, con una crescita futura attesa grazie ai progressi nell'accumulo energetico.",155,79,6.3707,16.9534,7.47
+Larger-Local,7.0,summarization-it-002,summarization,it,0.4,token_f1=0.40,,"TechCorp ha registrato un fatturato trimestrale di 2,4 miliardi di dollari, con un aumento del 12% rispetto all'anno precedente, grazie alla domanda per i servizi cloud, mantenendo i margini di profitto leggermente migliorati.","Il fatturato trimestrale di TechCorp è cresciuto del 12% grazie alla domanda di servizi cloud, e il titolo è salito dopo l'annuncio dei risultati.",145,65,5.1076,12.7165,8.54
+Larger-Local,7.0,summarization-it-003,summarization,it,0.4058,token_f1=0.41,,"Gli astronauti Neil Armstrong e Buzz Aldrin divennero i primi esseri umani a camminare sulla Luna il 20 luglio 1969 durante la missione Apollo 11 della NASA, seguita da milioni di persone in diretta televisiva e ritenuta una tappa fondamentale nella corsa allo spazio.","Lo sbarco sulla Luna dell'Apollo 11 nel 1969 rese Armstrong e Aldrin i primi uomini sulla Luna, un momento cruciale della corsa allo spazio.",148,79,5.1749,15.2399,7.85
+Larger-Local,7.0,summarization-it-004,summarization,it,0.5106,token_f1=0.51,,"Un sonno di meno di sei ore notte aumenta significativamente il rischio di malattie cardiache, confermando l'importanza di un sonno adeguato.","Uno studio decennale ha rilevato che dormire meno di sei ore aumenta il rischio cardiaco, confermando l'importanza di dormire sette-otto ore a notte.",162,40,5.9855,10.611,8.65
+Larger-Local,7.0,summarization-it-005,summarization,it,0.4912,token_f1=0.49,,"La squadra di casa ha ribaltato il risultato con due gol negli ultimi venti minuti, vincendo 2-1 grazie al gol decisivo all'88º minuto in una partita festeggiata fino a tarda notte.","La squadra di casa ha ribaltato uno svantaggio iniziale con due gol nel finale, incluso un gol su punizione all'88', vincendo 2-1.",132,59,4.4479,11.3701,8.52
+Larger-Local,7.0,summarization-it-006,summarization,it,0.5455,token_f1=0.55,,"Il consiglio comunale ha approvato un piano per rendere gratuiti gli autobus pubblici a partire dal prossimo anno, finanziato da una nuova tassa sui parcheggi del centro, ma alcuni commercianti hanno criticato la tassa come ingiusta.","La città renderà gratuiti gli autobus dal prossimo anno grazie a una nuova tassa sui parcheggi del centro, pensata per ridurre traffico ed emissioni, nonostante le critiche di alcuni commercianti.",140,62,4.8071,12.2735,8.3
+Larger-Local,7.0,summarization-it-007,summarization,it,0.5373,token_f1=0.54,,"Gli astronomi hanno scoperto un esopianeta, 1,5 volte più grande della Terra, in orbita attorno a una stella a 40 anni luce di distanza, che potrebbe avere acqua liquida in superficie e promettere per futuri studi sull'atmosfera.","Gli astronomi hanno scoperto un esopianeta potenzialmente abitabile a 40 anni luce, circa 1,5 volte le dimensioni della Terra, da studiare in futuro per la sua atmosfera.",158,71,5.7366,14.2003,8.39
+Larger-Local,7.0,summarization-it-008,summarization,it,0.4615,token_f1=0.46,,"Una giovane investigatrice in Londra degli anni '20 scopre una cospirazione poliziesca durante l'indagine su un furto, dobbiamo scegliere se denunci colleghi corrotti o proteggere la carriera, con la testimonianza finale davanti a un tribunale a costo personale.","Un'investigatrice nella Londra degli anni '20 scopre la corruzione della polizia indagando su un piccolo furto, rischiando la carriera per testimoniare contro i colleghi corrotti.",155,76,5.4825,14.5992,8.34
+Larger-Local,7.0,reasoning-en-001,reasoning,en,1.0,numeric_match,,40,40,67,3,3.488,3.715,13.22
+Larger-Local,7.0,reasoning-en-002,reasoning,en,1.0,numeric_match,,19,19,64,3,1.5803,1.8057,13.31
+Larger-Local,7.0,reasoning-en-003,reasoning,en,1.0,numeric_match,,$30,$30,60,4,1.3958,1.7387,11.66
+Larger-Local,7.0,reasoning-en-004,reasoning,en,0.0,day_mismatch_or_missing,,Wednesday,Saturday,56,2,1.2029,1.3148,17.86
+Larger-Local,7.0,reasoning-en-005,reasoning,en,1.0,numeric_match,,40,40 square meters,56,3,1.1949,1.4231,13.14
+Larger-Local,7.0,reasoning-en-006,reasoning,en,1.0,numeric_match,,14,14,59,3,1.4754,1.7047,13.08
+Larger-Local,7.0,reasoning-en-007,reasoning,en,1.0,numeric_match,,5,5,62,2,1.6211,1.7344,17.65
+Larger-Local,7.0,reasoning-en-008,reasoning,en,0.0,numeric_mismatch,,2,3,67,2,1.9288,2.0425,17.59
+Larger-Local,7.0,reasoning-en-009,reasoning,en,1.0,numeric_match,,1000 km,1000 km,71,6,2.0789,2.6557,10.4
+Larger-Local,7.0,reasoning-it-001,reasoning,it,1.0,numeric_match,,40,40,77,3,2.2902,2.5193,13.09
+Larger-Local,7.0,reasoning-it-002,reasoning,it,1.0,numeric_match,,19,19,70,3,1.7947,2.0247,13.04
+Larger-Local,7.0,reasoning-it-003,reasoning,it,1.0,numeric_match,,30,30 euro,65,3,1.6799,1.9071,13.2
+Larger-Local,7.0,reasoning-it-004,reasoning,it,0.0,day_mismatch_or_missing,,Venerdì,sabato,58,4,1.3841,1.7264,11.68
+Larger-Local,7.0,reasoning-it-005,reasoning,it,1.0,numeric_match,,40,40 metri quadrati,65,3,1.6923,1.921,13.12
+Larger-Local,7.0,reasoning-it-006,reasoning,it,1.0,numeric_match,,14,14,69,3,1.9964,2.2229,13.24
+Larger-Local,7.0,reasoning-it-007,reasoning,it,1.0,numeric_match,,5,5,72,2,2.0627,2.175,17.8
+Larger-Local,7.0,reasoning-it-008,reasoning,it,0.0,numeric_mismatch,,4,3,78,2,2.3701,2.4838,17.59
+Larger-Local,7.0,reasoning-it-009,reasoning,it,1.0,numeric_match,,1000,1000 km,79,5,2.4596,2.9234,10.78
+Larger-Local,7.0,instruction_following-en-001,instruction_following,en,1.0,correct,,YES,YES,55,2,2.8486,2.9628,17.5
+Larger-Local,7.0,instruction_following-en-002,instruction_following,en,1.0,correct,,cold,Cold,50,2,1.0816,1.1974,17.28
+Larger-Local,7.0,instruction_following-en-003,instruction_following,en,1.0,correct,,"apple, banana, orange","apple, banana, orange",48,6,0.9037,1.4802,10.41
+Larger-Local,7.0,instruction_following-en-004,instruction_following,en,1.0,correct,,366,366,54,4,1.304,1.6461,11.69
+Larger-Local,7.0,instruction_following-en-005,instruction_following,en,1.0,correct,,Capital: Tokyo,Capital: Tokyo,55,4,1.1958,1.539,11.66
+Larger-Local,7.0,instruction_following-en-006,instruction_following,en,1.0,correct,,JUPITER,JUPITER,51,4,1.01,1.3555,11.58
+Larger-Local,7.0,instruction_following-en-007,instruction_following,en,1.0,correct,,❤️,❤️,50,3,1.1133,1.3409,13.18
+Larger-Local,7.0,instruction_following-en-008,instruction_following,en,1.0,correct,,true,true,63,2,1.5864,1.7,17.6
+Larger-Local,7.0,instruction_following-en-009,instruction_following,en,1.0,correct,,"Red, Blue","red, blue",55,4,1.1979,1.5428,11.6
+Larger-Local,7.0,instruction_following-it-001,instruction_following,it,0.0,format_ok_content_wrong,,SI,SÌ,65,2,1.7799,1.8928,17.72
+Larger-Local,7.0,instruction_following-it-002,instruction_following,it,1.0,correct,,freddo,Freddo,55,4,1.0044,1.3466,11.69
+Larger-Local,7.0,instruction_following-it-003,instruction_following,it,0.0,format_ok_content_wrong,,"Banana, mela, arancia","mela, banana, arancia",57,9,1.3849,2.3138,9.69
+Larger-Local,7.0,instruction_following-it-004,instruction_following,it,1.0,correct,,366,366,58,4,1.4964,1.8411,11.6
+Larger-Local,7.0,instruction_following-it-005,instruction_following,it,1.0,correct,,Capitale: Tokyo,Capitale: Tokyo,67,6,1.5925,2.1694,10.4
+Larger-Local,7.0,instruction_following-it-006,instruction_following,it,0.0,format_ok_content_wrong,,JUPITER,GIOVE,58,4,1.3019,1.6471,11.59
+Larger-Local,7.0,instruction_following-it-007,instruction_following,it,1.0,correct,,❤️,❤️,58,3,1.2984,1.527,13.12
+Larger-Local,7.0,instruction_following-it-008,instruction_following,it,1.0,correct,,vero,vero,76,2,2.0764,2.1885,17.84
+Larger-Local,7.0,instruction_following-it-009,instruction_following,it,1.0,correct,,"rosso, blu","rosso, blu",65,5,1.5912,2.0482,10.94

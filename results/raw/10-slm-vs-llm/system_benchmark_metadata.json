@@ -1,0 +1,25 @@
+{
+  "experiment": {
+    "id": "10.2",
+    "title": "SLM vs LLM \u2014 Speed/Memory Benchmark",
+    "date": "2026-07-13"
+  },
+  "inference": {
+    "threads": 2,
+    "max_new_tokens": 64,
+    "systems": [
+      "CPU-SLM",
+      "Larger-Local"
+    ]
+  },
+  "measurement": {
+    "repetitions": 10,
+    "metrics": [
+      "disk_size_mb",
+      "load_time_s",
+      "peak_rss_mb",
+      "ttft_s",
+      "decode_tokens_per_s"
+    ]
+  }
+}

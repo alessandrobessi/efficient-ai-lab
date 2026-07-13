@@ -1,0 +1,52 @@
+# Three systems compared per FULL-ROADMAP.md's Week 10 brief. Only the first
+# two are actually run in this repo (both are self-hosted GGUF models we can
+# execute locally); the frontier remote API model is deliberately NOT called
+# live this week (see hypothesis.md and README.md §4 for why) — its cost is
+# estimated from published per-token pricing (a placeholder constant here,
+# since exact current pricing should be checked at run time, not hardcoded)
+# and its other dimensions (privacy, operational/deployment complexity,
+# observability, failure modes) are assessed qualitatively in the README.
+llama_cli_bin: "vendor/llama.cpp/build/bin/llama-cli"
+llama_server_bin: "vendor/llama.cpp/build/bin/llama-server"
+
+local_systems:
+  - name: CPU-SLM
+    description: "Qwen2.5-1.5B-Instruct, Q4_K_M — this program's baseline since Week 2"
+    file: "models/gguf/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+    params_b: 1.5
+  - name: Larger-Local
+    description: "Qwen2.5-7B-Instruct, Q4_K_M — same family, ~4.7x the parameters"
+    file: "models/gguf/qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf"
+    # llama.cpp auto-loads split GGUFs by following this naming convention from
+    # the first shard, but disk size has to be summed across all shards
+    # explicitly — `file`'s own stat() only sees the first one.
+    extra_shards:
+      - "models/gguf/qwen2.5-7b-instruct-q4_k_m-00002-of-00002.gguf"
+    params_b: 7.0
+
+# Held constant across both local systems, matching every prior week's practice
+# of isolating one variable at a time — here, model size/capability, not
+# threading or context configuration.
+threads: 2
+ctx_size: 2048
+port: 8799
+
+dataset: "evaluation/datasets/v1.jsonl"
+
+generation:
+  temperature: 0
+  seed: 42
+  max_tokens: 256
+
+benchmark:
+  max_new_tokens: 64
+  repetitions: 10
+
+# Cost model parameters. All of these are illustrative placeholders, not
+# verified current prices — see analysis/cost_model.py's module docstring and
+# README.md's limitations. Replace with real figures for your own
+# infrastructure/provider before treating any cost number here as decisive.
+cost_model:
+  local_compute_usd_per_hour: 0.10 # a small/modest on-demand CPU VM, illustrative only
+  frontier_input_usd_per_million_tokens: 1.00 # illustrative placeholder
+  frontier_output_usd_per_million_tokens: 5.00 # illustrative placeholder

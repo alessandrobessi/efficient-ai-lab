@@ -1,0 +1,13 @@
+system,category,score
+CPU-SLM,classification,1.0
+CPU-SLM,information_extraction,0.70833125
+CPU-SLM,instruction_following,0.7222222222222222
+CPU-SLM,reasoning,0.6111111111111112
+CPU-SLM,structured_output,0.8541624999999999
+CPU-SLM,summarization,0.27528125000000003
+Larger-Local,classification,1.0
+Larger-Local,information_extraction,0.80208125
+Larger-Local,instruction_following,0.8333333333333334
+Larger-Local,reasoning,0.7777777777777778
+Larger-Local,structured_output,0.95833125
+Larger-Local,summarization,0.48555625

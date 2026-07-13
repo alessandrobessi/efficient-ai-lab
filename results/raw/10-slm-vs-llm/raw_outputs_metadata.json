@@ -1,0 +1,24 @@
+{
+  "experiment": {
+    "id": "10.1",
+    "title": "SLM vs LLM \u2014 Local Systems Evaluation Pipeline",
+    "date": "2026-07-13"
+  },
+  "dataset": {
+    "path": "evaluation/datasets/v1.jsonl",
+    "n_examples": 100
+  },
+  "generation": {
+    "temperature": 0,
+    "seed": 42,
+    "max_tokens": 256
+  },
+  "inference": {
+    "threads": 2,
+    "ctx_size": 2048,
+    "systems": [
+      "CPU-SLM",
+      "Larger-Local"
+    ]
+  }
+}
