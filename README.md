@@ -49,7 +49,7 @@ The program runs in four phases across 12 weeks.
 | 6 | Small Model Comparison | ✅ Complete |
 | 7 | Go Inference Gateway | ✅ Complete |
 | 8 | Load Testing and Observability | ✅ Complete |
-| 9 | Kubernetes and Failure Engineering | ⬜ Not started |
+| 9 | Kubernetes and Failure Engineering | ✅ Complete |
 | 10 | SLM vs LLM | ⬜ Not started |
 | 11 | AI Architecture Decision Framework | ⬜ Not started |
 | 12 | Final Synthesis | ⬜ Not started |

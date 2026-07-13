@@ -1,0 +1,14 @@
+# Shared configuration for both containers in the pod (see deployment.yaml).
+# The model file lives on the node at /models (mounted from the host's
+# models/gguf/ via kind's extraMounts — see create_cluster.sh) so it's never
+# baked into a container image.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slm-gateway-config
+data:
+  MODEL_PATH: /models/qwen2.5-1.5b-instruct-q4_k_m.gguf
+  LLAMA_SERVER_PORT: "8799"
+  GATEWAY_PORT: "8080"
+  LLAMA_SERVER_URL: "http://127.0.0.1:8799"
+  LOG_LEVEL: "info"

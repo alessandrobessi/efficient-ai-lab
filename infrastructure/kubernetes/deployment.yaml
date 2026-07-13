@@ -1,0 +1,109 @@
+# One pod = one llama-server + one inference-gateway container, sharing the
+# pod's network namespace (gateway reaches llama-server at 127.0.0.1) and a
+# read-only hostPath volume for the model. Scaling `replicas` therefore scales
+# complete (gateway, model) pairs — each replica duplicates the model in
+# memory — which is exactly what Experiment 9.5 (horizontal scaling) measures.
+# See docs/architecture/kubernetes.md for the full rationale.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slm-gateway
+  labels:
+    app: slm-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: slm-gateway
+  template:
+    metadata:
+      labels:
+        app: slm-gateway
+    spec:
+      volumes:
+        - name: models
+          hostPath:
+            path: /models
+            type: Directory
+      containers:
+        - name: llama-server
+          image: ghcr.io/ggml-org/llama.cpp:server
+          args:
+            - "-m"
+            - "$(MODEL_PATH)"
+            - "-t"
+            - "2"
+            - "-np"
+            - "1"
+            - "-c"
+            - "2048"
+            - "--no-warmup"
+            - "--metrics"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "$(LLAMA_SERVER_PORT)"
+          envFrom:
+            - configMapRef:
+                name: slm-gateway-config
+          ports:
+            - containerPort: 8799
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true
+          # Baseline resources — Experiments 9.1/9.2 override these via
+          # `kubectl patch` (see experiments/09-kubernetes/scripts/) rather
+          # than maintaining a separate manifest per tested limit. 2Gi is not
+          # arbitrary: Experiment 9.2 found this model healthy down to 1.5Gi
+          # and OOMKilled at 1Gi, so 2Gi is the smallest round number with
+          # real headroom — sized deliberately small so 3+ replicas (Experiment
+          # 9.5) fit within this single kind node's ~7.65GB Docker Desktop VM
+          # memory budget (a 4Gi baseline made a 2-replica test unschedulable
+          # — "Insufficient memory" — a real finding, see the Week 9 README).
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8799
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8799
+            initialDelaySeconds: 1
+            periodSeconds: 2
+        - name: inference-gateway
+          image: inference-gateway:week9
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: slm-gateway-config
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 1
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 1
+            periodSeconds: 2

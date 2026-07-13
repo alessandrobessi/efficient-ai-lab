@@ -1,0 +1,6 @@
+{"memory_limit": "4Gi", "rollout_ok": true, "ready": true, "restart_count": 0, "last_terminated_reason": "", "health_status_code": "200"}
+{"memory_limit": "3Gi", "rollout_ok": true, "ready": true, "restart_count": 0, "last_terminated_reason": "", "health_status_code": "200"}
+{"memory_limit": "2.5Gi", "rollout_ok": true, "ready": true, "restart_count": 0, "last_terminated_reason": "", "health_status_code": "200"}
+{"memory_limit": "2Gi", "rollout_ok": true, "ready": true, "restart_count": 0, "last_terminated_reason": "", "health_status_code": "200"}
+{"memory_limit": "1.5Gi", "rollout_ok": true, "ready": true, "restart_count": 0, "last_terminated_reason": "", "health_status_code": "200"}
+{"memory_limit": "1Gi", "rollout_ok": false, "ready": false, "restart_count": 3, "last_terminated_reason": "OOMKilled", "health_status_code": "unknown"}

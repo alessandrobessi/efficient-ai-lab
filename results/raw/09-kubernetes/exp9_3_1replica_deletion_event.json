@@ -1,0 +1,1 @@
+{"label": "exp9_3_1replica", "replicas": 1, "victim_pod": "slm-gateway-7cb5f5bf68-nmjt9", "delete_timestamp": "2026-07-13T07:21:15.995881+00:00", "recovered_timestamp": "2026-07-13T07:21:31.041670+00:00"}

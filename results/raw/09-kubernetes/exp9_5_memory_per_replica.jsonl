@@ -1,0 +1,6 @@
+{"replicas": 1, "pod": "slm-gateway-5958f8d98d-pkgpv", "cpu_usage": "126m", "memory_usage": "1589Mi"}
+{"replicas": 2, "pod": "slm-gateway-5958f8d98d-2k5ts", "cpu_usage": "157m", "memory_usage": "1586Mi"}
+{"replicas": 2, "pod": "slm-gateway-5958f8d98d-wbpcr", "cpu_usage": "128m", "memory_usage": "1595Mi"}
+{"replicas": 3, "pod": "slm-gateway-5958f8d98d-6w4b9", "cpu_usage": "215m", "memory_usage": "1332Mi"}
+{"replicas": 3, "pod": "slm-gateway-5958f8d98d-fm4rp", "cpu_usage": "181m", "memory_usage": "1326Mi"}
+{"replicas": 3, "pod": "slm-gateway-5958f8d98d-w5x6x", "cpu_usage": "234m", "memory_usage": "1577Mi"}

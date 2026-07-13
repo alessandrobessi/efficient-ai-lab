@@ -1,0 +1,16 @@
+# NodePort so the existing Week 8 load generator (a plain HTTP client) can
+# drive traffic at http://127.0.0.1:8080 exactly as it did against the native
+# gateway — kind maps hostPort 8080 -> this NodePort (see create_cluster.sh).
+# With >1 replica, this Service load-balances across every Ready pod.
+apiVersion: v1
+kind: Service
+metadata:
+  name: slm-gateway
+spec:
+  type: NodePort
+  selector:
+    app: slm-gateway
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080

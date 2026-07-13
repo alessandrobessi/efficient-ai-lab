@@ -1,0 +1,31 @@
+{
+  "label": "exp9_1_cpu_2000m",
+  "mode": "closed-loop",
+  "concurrency": 1,
+  "requests_per_second": 10,
+  "duration_s": 20,
+  "max_tokens": 64,
+  "temperature": 0,
+  "target_url": "http://127.0.0.1:8080/v1/generate",
+  "timestamp": "2026-07-13T09:13:36.094896+02:00",
+  "summary": {
+    "n": 14,
+    "errors": 0,
+    "error_rate": 0,
+    "wall_clock_s": 20.068848458,
+    "throughput_rps": 0.6975985707051972,
+    "latency_p50_ms": 1435.7422705,
+    "latency_p95_ms": 1546.9220771999999,
+    "latency_p99_ms": 1600.95204904,
+    "latency_max_ms": 1614.459542,
+    "corrected_latency_p50_ms": 1435.7427085,
+    "corrected_latency_p95_ms": 1546.92253105,
+    "corrected_latency_p99_ms": 1600.95237341,
+    "queue_delay_p50_ms": 0.000459,
+    "queue_delay_p99_ms": 0.0170955,
+    "ttft_p50_ms": 180,
+    "ttft_p95_ms": 291.8999999999999,
+    "ttft_p99_ms": 361.58,
+    "tokens_per_second_mean": 51.67504486545333
+  }
+}

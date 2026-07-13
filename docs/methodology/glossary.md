@@ -404,3 +404,56 @@ latency and error rate both growing sharply. Week 8 found throughput plateaus al
 immediately (by concurrency ≈ 2), while the *error rate* collapse (0% to >60%) only
 becomes visible once queued wait time starts exceeding the request timeout, between
 concurrency 10 and 20 on this machine.
+
+## Week 9 — Kubernetes and Failure Engineering
+
+**cgroup CPU quota / throttling** — Kubernetes enforces a container's CPU *limit*
+using the Linux kernel's cgroup CFS bandwidth controller: the container gets to run
+for only a fixed fraction of each scheduling period, and is paused ("throttled") for
+the rest, regardless of how many OS threads it spawned. Week 9.1 found this produces
+a smooth latency slowdown as the limit shrinks toward the 2 cores llama-server's
+`-t 2` setting actually needs, then a qualitative collapse (100% errors) at a quarter
+of a core — throttling isn't just "slower," it can starve a service past the point of
+functioning within a timeout at all.
+
+**OOMKilled** — the specific pod status when a container exceeds its memory *limit*
+and the kernel's out-of-memory killer terminates it. Unlike CPU (a renewable resource
+you can be throttled on), memory is hard-capped — Week 9.2 found this model runs
+perfectly healthy at every tested limit down to 1.5Gi and immediately crash-loops
+(`OOMKilled`, repeatedly) at 1Gi, a cliff rather than a slope.
+
+**Guaranteed QoS (Quality of Service)** — a Kubernetes pod is classified "Guaranteed"
+when every container's resource *requests* exactly equal its *limits*, for both CPU
+and memory. Week 9's experiments deliberately set requests=limits on the model
+container so the tested CPU/memory value is strictly enforced, not just a soft
+scheduling hint.
+
+**Liveness vs. readiness probe** — the Kubernetes-native version of Week 7's
+`/health` vs. `/ready` distinction: a failing liveness probe gets the container
+*restarted*; a failing readiness probe just gets it *removed from Service routing*
+without a restart. Week 9's manifest points each probe at the endpoint Week 7 built
+for exactly this purpose.
+
+**Recovery time (pod failure)** — how long a Kubernetes Service takes to route
+traffic away from a deleted/crashed pod and back to a healthy replacement. Week 9.3
+measured this directly (via timestamps around `kubectl delete pod`, polling for a
+*genuinely new* pod name to avoid counting the old pod's brief "still terminating but
+reporting ready" window) — 15 seconds with 1 replica (full outage the whole time) vs.
+6.8 seconds with 2 (no outage, since the Service kept routing to the survivor).
+
+**Horizontal scaling (replica count)** — running more copies (replicas) of the same
+service to increase total capacity, as opposed to giving one copy more resources
+(vertical scaling). Week 9.5's central, surprising finding: adding replicas here did
+*not* increase aggregate throughput — direct evidence (per-pod request counts) pointed
+at Kubernetes Services load-balancing HTTP at the *connection* level rather than the
+*request* level (see below) as a contributing mechanism, compounded by all replicas
+sharing one physical machine's CPU/RAM on this single-node test cluster.
+
+**Connection-level vs. request-level load balancing** — a Kubernetes Service (via
+kube-proxy's iptables rules) picks a backend pod when a client's TCP *connection* is
+established, then every request on that same persistent (keep-alive) connection goes
+to that same backend for the connection's lifetime — it does not re-balance
+per HTTP request the way an application-aware (L7) load balancer would. With only a
+handful of long-lived connections spread across a small number of backend pods, this
+can produce noticeably uneven load by chance alone — which is what Week 9.5 observed
+directly (a roughly 10x spread in per-pod work done).

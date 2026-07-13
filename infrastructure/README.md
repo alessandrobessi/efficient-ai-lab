@@ -8,9 +8,13 @@ Deployment and observability configuration, introduced in Phase III (Weeks 7–9
   stack) from Week 7; `observability-compose.yml` (Prometheus + Grafana) from Week 8.
   See `services/inference-gateway/README.md` and
   `experiments/08-load-testing/README.md` for run instructions.
-- `kubernetes/` — Deployment/Service/ConfigMap manifests, resource requests/limits,
-  probes, used for the Week 9 orchestration and failure experiments. Not started —
-  first used in Week 9.
+- [`kubernetes/`](kubernetes/) — **built in Week 9.** `create_cluster.sh` (local kind
+  cluster with the host's model directory mounted in + gateway port mapped out),
+  `configmap.yaml`/`deployment.yaml`/`service.yaml` (one pod = gateway + llama-server
+  containers sharing a network namespace, hostPath model volume, resource
+  requests/limits, liveness/readiness probes, NodePort Service). See
+  `experiments/09-kubernetes/README.md` for the failure/scaling experiments run
+  against it and `docs/architecture/kubernetes.md` for the design.
 - [`prometheus/`](prometheus/) — **built in Week 8.** Scrape config for the gateway,
   llama-server's own `--metrics` endpoint, and `node_exporter` (host CPU/RAM).
 - [`grafana/`](grafana/) — **built in Week 8.** Provisioned datasource + one dashboard

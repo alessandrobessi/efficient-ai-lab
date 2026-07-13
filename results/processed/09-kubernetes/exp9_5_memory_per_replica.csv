@@ -1,0 +1,7 @@
+replicas,pod,cpu_usage,memory_usage
+1,slm-gateway-5958f8d98d-pkgpv,126m,1589Mi
+2,slm-gateway-5958f8d98d-2k5ts,157m,1586Mi
+2,slm-gateway-5958f8d98d-wbpcr,128m,1595Mi
+3,slm-gateway-5958f8d98d-6w4b9,215m,1332Mi
+3,slm-gateway-5958f8d98d-fm4rp,181m,1326Mi
+3,slm-gateway-5958f8d98d-w5x6x,234m,1577Mi

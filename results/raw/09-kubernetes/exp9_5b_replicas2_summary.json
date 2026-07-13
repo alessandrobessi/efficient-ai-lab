@@ -1,0 +1,31 @@
+{
+  "label": "exp9_5b_replicas2",
+  "mode": "closed-loop",
+  "concurrency": 40,
+  "requests_per_second": 10,
+  "duration_s": 45,
+  "max_tokens": 64,
+  "temperature": 0,
+  "target_url": "http://127.0.0.1:8080/v1/generate",
+  "timestamp": "2026-07-13T09:43:45.426808+02:00",
+  "summary": {
+    "n": 90,
+    "errors": 64,
+    "error_rate": 0.7111111111111111,
+    "wall_clock_s": 71.88037575,
+    "throughput_rps": 0.36171207688768936,
+    "latency_p50_ms": 18754.9360215,
+    "latency_p95_ms": 28717.032656,
+    "latency_p99_ms": 29473.23764575,
+    "latency_max_ms": 29715.407875,
+    "corrected_latency_p50_ms": 18754.942562999997,
+    "corrected_latency_p95_ms": 28717.108604,
+    "corrected_latency_p99_ms": 29473.2632705,
+    "queue_delay_p50_ms": 0.0013955,
+    "queue_delay_p99_ms": 0.31971925,
+    "ttft_p50_ms": 329.5,
+    "ttft_p95_ms": 759.25,
+    "ttft_p99_ms": 820.25,
+    "tokens_per_second_mean": 23.47431711392805
+  }
+}
