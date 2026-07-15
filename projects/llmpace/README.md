@@ -13,6 +13,7 @@ limitations](#known-limitations) for what's still open.
 
 ## Table of contents
 
+- [Why this matters](#why-this-matters)
 - [Why ordinary latency lies under saturation](#why-ordinary-latency-lies-under-saturation)
 - [30-second demo](#30-second-demo)
 - [A real saturation curve](#a-real-saturation-curve)
@@ -24,6 +25,30 @@ limitations](#known-limitations) for what's still open.
 - [Architecture](#architecture)
 - [Known limitations](#known-limitations)
 - [License](#license)
+
+## Why this matters
+
+Imagine a restaurant that proudly advertises "we cook every meal in 10
+minutes." Technically true — but if the kitchen is slammed, you might stand
+in line for 45 minutes before anyone even starts cooking your order. The
+"10 minutes" number is real, and also completely misleading about how long
+your dinner actually took.
+
+That's exactly what happens when you load-test an AI server the naive way.
+Once it gets busy, incoming requests start piling up in a queue before the
+server even looks at them. If your load-testing tool only starts its
+stopwatch the moment the server *starts working* on a request — instead of
+the moment the request *should have* been handled — it will report clean,
+fast numbers right up until the system falls over, because it never counts
+the wait.
+
+llmpace starts the stopwatch at the right moment, always, and shows you
+both numbers side by side: how long the server took to do the work, and how
+long you actually waited including the queue. If those two numbers start
+drifting apart, that's the earliest, clearest signal that a server is
+running out of headroom — usually well before anything looks obviously
+"broken." That's the whole point of the tool: catching the restaurant
+quietly running out of tables before the dining room turns into chaos.
 
 ## Why ordinary latency lies under saturation
 
