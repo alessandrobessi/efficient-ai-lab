@@ -1,6 +1,6 @@
 # llmpace — Development Roadmap
 
-**Status: M0-M5 implemented — `llmpace/v0.1.1` tagged.** The
+**Status: M0-M5 implemented — `llmpace/v0.1.2` (this branch, pending tag).** The
 architecture below reflects what was actually built (see `internal/`), not
 just a plan. Two deliberate simplifications remain from the original plan
 and are not expected to change for v0.1.x: the YAML multi-stage test-plan
@@ -54,6 +54,78 @@ evidence. All four were addressed:
 A real multi-hour soak run against a live backend still hasn't been
 executed — the bounded-memory mechanism itself is unit-tested (Reservoir up
 to 200k samples), but real-world validation at that scale remains open.
+
+## v0.1.2: fixes from a second external review
+
+A second external review, against v0.1.1, found the earlier benchmark was
+very likely not actually CPU-only, plus five further correctness/clarity
+gaps in the metrics themselves. All were addressed:
+
+1. **The v0.1.1 benchmark almost certainly wasn't CPU-only.**
+   `llama-server`'s own `--n-gpu-layers` defaults to `auto`, and this
+   machine's Homebrew build has Metal compiled in (`BLAS,MTL` backends,
+   confirmed against the same binary) — so the earlier "CPU" run likely
+   included GPU-accelerated inference. Fixed: reran the entire 1-5 req/s
+   sweep with `--n-gpu-layers 0` passed explicitly (verified present in the
+   running process's own arguments, not just a config file). See
+   [`benchmarks/2026-07-15-qwen2.5-0.5b-cpu/README.md`](benchmarks/2026-07-15-qwen2.5-0.5b-cpu/README.md)
+   for the new numbers and an honest note that they turned out
+   comparable-to-slightly-better than the retracted GPU-influenced run —
+   reported as an open observation, not explained away.
+2. **`peak_queue_depth` conflated two different things.** The old single
+   number mixed "requests being served" (bounded by `-concurrency`, rarely
+   interesting) with "requests genuinely blocked waiting for a sender slot"
+   (the real client-side backlog). Split into `PeakExecuting` (peak
+   in-flight) and `PeakWaiting` (peak waiting) throughout
+   `dispatch.QueueStats`, `report.QueueMetadata`, the table, JSON, CSV, and
+   Prometheus output.
+3. **`-max-queue-depth`'s old default (0) meant "unbounded."** A `0`
+   default reading as "no limit" is surprising and easy to mis-set. Fixed:
+   default is now `concurrency*10` (auto-resolved after parsing), with
+   `-1` as the explicit unbounded opt-in and `0` now meaning what it reads
+   as — no extra queue beyond concurrency. Caught a real ordering bug in
+   `config.ParseFlags` while adding `TestParseFlags_MaxQueueDepth*`: the
+   range-check ran *before* the auto-sentinel was resolved, so every
+   default invocation would have errored immediately.
+4. **Failed requests vanished from every latency percentile.** Under real
+   overload, the slowest requests are often exactly the ones that time out
+   — so a run's successful-only latency distribution could look stable or
+   even *improve* purely because the worst requests moved into the error
+   bucket. Fixed: `stats.Accumulator` now tracks failed-request corrected
+   duration as its own distribution (`FailedDurationP50/95/99Ms`), and
+   categorizes errors into `connection_or_timeout`/`http_<code>`/
+   `stream_parse_error` so "backend rejecting" is distinguishable from
+   "backend never responded" from "stream broke mid-response."
+5. **`chunks_per_second_mean` was one number for two different things.** A
+   slow-prefill-fast-decode request and a fast-prefill-slow-decode request
+   could produce the same mean while meaning opposite things. Split into
+   `ResponseChunksPerSecondMean` (chunks over total `SentAt`-to-`DoneAt`
+   duration — includes TTFT/prefill) and `DecodeChunksPerSecondMean`
+   (`chunks-1` over first-chunk-to-last-chunk time — pure post-first-token
+   rate, aligned with the ITL numbers).
+6. **The coordinated-omission narrative conflated two distinct signals.**
+   The docs previously implied naive-vs-corrected divergence was "the
+   earliest sign of saturation" — the new CPU-only benchmark data itself
+   disproves that framing: naive latency alone shows the knee at 4 req/s
+   (peak in-flight 17, peak waiting 1 — negligible), while naive/corrected
+   divergence only appears at 5 req/s (peak waiting jumps to 8). Rewrote
+   [`README.md`](README.md)'s "Why this matters" and "Why ordinary latency
+   lies" sections, and the benchmark's own README, to state precisely:
+   service metrics (naive latency, naive TTFT, throughput) reveal backend
+   saturation, and reveal it first; naive/corrected divergence specifically
+   flags when the load generator's *own* dispatch has fallen behind its
+   nominal schedule.
+7. **Only one throughput number was reported, conflating three distinct
+   rates.** Offered (nominal `-rps`), admitted (`(scheduled-dropped)`/wall
+   clock — did the request get a sender slot), and completed
+   (successes/wall clock) can all diverge independently once admission
+   control or backend errors are in play. Added `report.QueueMetadata.
+   AdmittedRPS` and three explicit table/CSV/Prometheus rows (`rate:
+   offered`, `rate: admitted`, `rate: completed`) instead of one ambiguous
+   "throughput" line.
+8. **A stale "pre-tag" version note.** The benchmark README referenced
+   "this branch (v0.1.1, pre-tag)" after v0.1.1 had already been tagged.
+   Fixed to reference the actual current status at time of writing.
 
 ## Why this exists
 
@@ -230,6 +302,7 @@ long a run lasts. Below that many requests, the reservoir holds every value
 | **M3** | CSV/Prometheus output, bounded-memory design | **Mostly done** — reservoir sampling, CSV, and Prometheus textfile output are implemented and unit-tested; a real multi-hour soak run against a live backend has not actually been executed, only the bounded-memory mechanism itself (unit tests up to 200k samples). YAML config file explicitly deferred (see note above) |
 | **M4** | Docs, CI, `CONTRIBUTING.md`, tagged `v0.1.0` with cross-compiled binaries | **Mostly done** — `.github/workflows/llmpace-ci.yml` (build/vet/test/gofmt on every push/PR touching `projects/llmpace/**`), `CONTRIBUTING.md`, git tag `llmpace/v0.1.0`, and a `-version` flag baked in via `-ldflags`, verified against a real ldflags build. Cross-compilation for darwin/linux amd64/arm64 was built and smoke-tested locally, but **no GitHub Release with downloadable binaries has been published** — that step was deliberately held back pending the maintainer's own call on publishing publicly. The soak-test and YAML-config gaps noted under M3 are still open too — this milestone is about packaging/release infrastructure, not closing those |
 | **M5** | v0.1.1: fixes from external review — scheduled/corrected TTFT, bounded client-side backlog, chunks-not-tokens naming, a real benchmark | **Done** — see [v0.1.1: fixes from external review](#v011-fixes-from-external-review) above for the full breakdown |
+| **M6** | v0.1.2: fixes from a second external review — genuinely CPU-only benchmark, peak-waiting/peak-executing split, safer `-max-queue-depth` default, failed-request tracking, response/decode chunk-rate split, refined CO narrative, distinct offered/admitted/completed rates | **Done** — see [v0.1.2: fixes from a second external review](#v012-fixes-from-a-second-external-review) above for the full breakdown |
 
 ## Testing strategy
 

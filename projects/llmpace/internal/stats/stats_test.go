@@ -40,7 +40,7 @@ func result(scheduledAt, sentAt, doneAt time.Time, statusCode int, errMsg string
 	}
 }
 
-func TestAccumulator_ErrorsExcludedFromLatency(t *testing.T) {
+func TestAccumulator_ErrorsExcludedFromSuccessLatency(t *testing.T) {
 	acc := NewAccumulator(1000)
 	base := time.Now()
 	acc.Add(result(base, base, base.Add(10*time.Millisecond), 200, ""))
@@ -54,7 +54,91 @@ func TestAccumulator_ErrorsExcludedFromLatency(t *testing.T) {
 		t.Fatalf("Errors = %d, want 1", s.Errors)
 	}
 	if s.LatencySampleN != 1 {
-		t.Fatalf("LatencySampleN = %d, want 1 (errored request excluded)", s.LatencySampleN)
+		t.Fatalf("LatencySampleN = %d, want 1 (errored request excluded from success latency)", s.LatencySampleN)
+	}
+}
+
+// TestAccumulator_FailedRequestsGetTheirOwnDurationDistribution is the
+// concrete proof that failed requests don't just vanish: they're excluded
+// from the *success* latency view (that's still correct — a timeout isn't
+// "1000ms of successful decoding"), but their own duration is tracked
+// separately, so a run where the slowest requests start timing out under
+// real overload doesn't look artificially clean just because those
+// requests moved into the error bucket.
+func TestAccumulator_FailedRequestsGetTheirOwnDurationDistribution(t *testing.T) {
+	acc := NewAccumulator(1000)
+	base := time.Now()
+	acc.Add(result(base, base, base.Add(10*time.Millisecond), 200, ""))
+	// A slow, failed request -- e.g. a timeout after 5s under overload.
+	acc.Add(result(base, base, base.Add(5*time.Second), 0, "context deadline exceeded"))
+
+	s := acc.Finalize(1.0)
+	if s.FailedSampleN != 1 {
+		t.Fatalf("FailedSampleN = %d, want 1", s.FailedSampleN)
+	}
+	if s.FailedDurationP50Ms < 4900 {
+		t.Fatalf("expected failed-request duration to reflect the real ~5s wait, got %.1fms", s.FailedDurationP50Ms)
+	}
+	// And critically: that 5s failure must not appear in successful latency,
+	// which should still just be the one clean 10ms request.
+	if s.NaiveP99Ms > 100 {
+		t.Fatalf("the failed request's 5s duration leaked into successful latency (p99=%.1fms)", s.NaiveP99Ms)
+	}
+}
+
+// TestAccumulator_ResponseVsDecodeChunkRateDiffer is the concrete proof
+// that response-rate (denominator includes TTFT/prefill) and decode-rate
+// (post-first-token only) are genuinely different numbers, not just two
+// names for the same thing: a request with a slow prefill but fast decode
+// should show a low response rate and a high decode rate.
+func TestAccumulator_ResponseVsDecodeChunkRateDiffer(t *testing.T) {
+	acc := NewAccumulator(1000)
+	base := time.Now()
+	sentAt := base
+	// 2s to first token (slow prefill), then 2 fast 10ms decode gaps for a
+	// 3-chunk response -- total wall time ~2.02s.
+	doneAt := base.Add(2020 * time.Millisecond)
+	acc.Add(dispatch.Result{
+		ScheduledAt:      sentAt,
+		SentAt:           sentAt,
+		DoneAt:           doneAt,
+		Latency:          doneAt.Sub(sentAt),
+		Corrected:        doneAt.Sub(sentAt),
+		StreamChunks:     3,
+		InterTokenGapsMs: []float64{10, 10},
+		StatusCode:       200,
+	})
+
+	s := acc.Finalize(1.0)
+	// Response rate: 3 chunks / ~2.02s ~= 1.5/s -- dominated by the slow prefill.
+	if s.ResponseChunksPerSecondMean > 3 {
+		t.Fatalf("expected response rate to be dragged down by slow prefill, got %.1f", s.ResponseChunksPerSecondMean)
+	}
+	// Decode rate: 2 gaps / 0.02s = 100/s -- fast once generation actually started.
+	if s.DecodeChunksPerSecondMean < 50 {
+		t.Fatalf("expected decode rate to reflect the fast 10ms gaps once decoding started, got %.1f", s.DecodeChunksPerSecondMean)
+	}
+	if s.DecodeChunksPerSecondMean <= s.ResponseChunksPerSecondMean*10 {
+		t.Fatalf("expected decode rate (%.1f) to be dramatically higher than response rate (%.1f) given the slow prefill", s.DecodeChunksPerSecondMean, s.ResponseChunksPerSecondMean)
+	}
+}
+
+func TestAccumulator_CategorizesErrorsDistinctly(t *testing.T) {
+	acc := NewAccumulator(1000)
+	base := time.Now()
+	acc.Add(result(base, base, base.Add(1*time.Millisecond), 0, "dial tcp: connection refused"))
+	acc.Add(result(base, base, base.Add(1*time.Millisecond), 429, "status 429 Too Many Requests"))
+	acc.Add(result(base, base, base.Add(1*time.Millisecond), 200, "stream: unexpected EOF"))
+
+	s := acc.Finalize(1.0)
+	want := map[string]int{"connection_or_timeout": 1, "http_429": 1, "stream_parse_error": 1}
+	if len(s.ErrorsByCategory) != len(want) {
+		t.Fatalf("ErrorsByCategory = %v, want %v", s.ErrorsByCategory, want)
+	}
+	for k, v := range want {
+		if s.ErrorsByCategory[k] != v {
+			t.Fatalf("ErrorsByCategory[%q] = %d, want %d (full map: %v)", k, s.ErrorsByCategory[k], v, s.ErrorsByCategory)
+		}
 	}
 }
 

@@ -6,9 +6,8 @@ A small, inspectable, dependency-free Go load generator for LLM inference
 servers that makes **scheduled-vs-service latency** impossible to overlook —
 one static binary, stdlib only, no Python environment required.
 
-**Status: [`llmpace/v0.1.1`](https://github.com/alessandrobessi/efficient-ai-lab/tree/llmpace/v0.1.1) tagged.**
-No pre-built binaries published yet — build from source (below). See
-[`ROADMAP.md`](ROADMAP.md) for full design rationale and [Known
+**Status: `llmpace/v0.1.2` (this branch, pending tag).** Build from source
+(below); see [`ROADMAP.md`](ROADMAP.md) for full design rationale and [Known
 limitations](#known-limitations) for what's still open.
 
 ## Table of contents
@@ -44,11 +43,20 @@ the wait.
 
 llmpace starts the stopwatch at the right moment, always, and shows you
 both numbers side by side: how long the server took to do the work, and how
-long you actually waited including the queue. If those two numbers start
-drifting apart, that's the earliest, clearest signal that a server is
-running out of headroom — usually well before anything looks obviously
-"broken." That's the whole point of the tool: catching the restaurant
-quietly running out of tables before the dining room turns into chaos.
+long you actually waited including the queue. Watching either number climb
+while throughput stops rising is already a clear sign the kitchen is
+saturated — you don't need the two-stopwatch trick to see *that*. What the
+two-stopwatch trick catches is a narrower, sneakier failure: the moment the
+person taking orders (the load generator itself) can no longer keep up with
+new customers walking in the door, so a growing line forms *before anyone
+even starts the "10 minute" clock*. That's the part a single stopwatch can
+never show you, no matter how carefully you read it.
+
+That's the whole point of the tool: not just noticing the kitchen is
+struggling — service-side numbers already do that — but catching the
+specific moment where the load generator's own queue starts eating the
+difference between "how busy the kitchen looks" and "how long a customer
+actually waited."
 
 ## Why ordinary latency lies under saturation
 
@@ -68,41 +76,72 @@ overload produces. This is **coordinated omission**: a backend can look
 measured), because the requests that would expose the backlog haven't been
 sent yet.
 
-llmpace's design follows from taking that one problem seriously everywhere
+**What each view actually diagnoses, precisely.** Service metrics — naive
+latency, naive TTFT, and throughput flattening against the offered rate —
+are what reveal that a *backend* is saturated, and they reveal it first: a
+climbing naive p99 alongside a flat throughput curve is already a complete,
+correct signal that the target can't keep up, no naive-vs-corrected
+comparison required. The naive-vs-corrected divergence is a narrower,
+additional signal: it specifically means the *load generator's own
+dispatch* has started falling behind its nominal schedule — which in
+practice tends to happen once `-concurrency` itself becomes the limiting
+factor (see the [real saturation curve below](#a-real-saturation-curve) for
+a concrete run where this exact handoff is visible in the data: naive
+latency alone shows the knee two rate-steps before naive/corrected actually
+diverge). Treat "service metrics reveal backend saturation" and
+"naive/corrected divergence reveals generator-side backlog" as two related
+but distinct facts, not one blurred-together symptom.
+
+llmpace's design follows from taking that distinction seriously everywhere
 it can hide, not just in the obvious spot: open-loop dispatch by default (so
 there's a schedule to fall behind in the first place), naive-vs-corrected
 values reported side by side for both total latency *and* TTFT (an easy
 place to reintroduce the same blind spot by only fixing it half the time),
-and explicit backlog/queue-depth telemetry (so a self-inflicted client
-bottleneck isn't mistaken for the backend being overloaded).
+and separate **peak in-flight** (bounded by `-concurrency`, tells you how
+saturated the backend side is) vs. **peak waiting** (the real client-side
+queue depth, tells you whether the generator itself has fallen behind) —
+so a self-inflicted client bottleneck is never mistaken for the backend
+being overloaded, or vice versa.
 
 ## 30-second demo
 
 ```bash
 cd projects/llmpace
 go build -o llmpace .
-./llmpace -backend llamacpp -url http://127.0.0.1:8080 -rps 20 -duration 30s
+./llmpace -backend llamacpp -url http://127.0.0.1:8080 -rps 20 -duration 30s -max-tokens 64
 ```
 
 ```
 llmpace run: run
-backend                       llamacpp
-mode                          open-loop
-target                        http://127.0.0.1:8099
-configured duration           2.0s
-requests                      40 (0 errors, 0.0% error rate)
-throughput                    19.51 req/s
-generator: scheduled/dropped  40 / 0
-generator: peak queue depth   3 (unbounded — set -max-queue-depth to cap it)
-                                  p50   p95   p99
-latency (naive)               ms  31.7  32.6  33.8
-latency (corrected)           ms  33.6  34.7  35.8
-queue delay                   ms  2.1   -     2.2
-ttft (naive)                  ms  6.9   7.6   9.0
-ttft (corrected)              ms  7.2   7.9   9.4
-inter-token latency           ms  6.3   6.4   6.5
-chunks/sec (mean)                 158.42
+backend                                     llamacpp
+mode                                        open-loop
+target                                      http://127.0.0.1:8099
+configured duration                         30.0s
+requests                                    600 (0 errors, 0.0% error rate)
+rate: offered (nominal -rps)                20.00 req/s
+rate: admitted (got a sender slot)          19.97 req/s
+rate: completed (successes / wall clock)    19.97 req/s
+generator: scheduled/dropped                600 / 0
+generator: peak in-flight                   1 (of 10 sender slots)
+generator: peak waiting (real queue depth)  1 (bound: max-queue-depth 100)
+                                                p50   p95   p99
+latency (naive)                             ms  29.3  29.8  30.6
+latency (corrected)                         ms  30.3  30.9  31.6
+queue delay                                 ms  1.1   -     1.2
+ttft (naive)                                ms  6.5   6.9   7.5
+ttft (corrected)                            ms  7.5   8.0   8.7
+inter-token latency                         ms  5.7   5.9   6.0
+response chunks/sec (mean)                      170.93
+decode chunks/sec (mean)                        176.00
 ```
+
+At 20 req/s against 10 sender slots and `-max-tokens 64`, this server isn't
+even close to saturated: peak in-flight (1) is far below `-concurrency`
+(10), peak waiting (1) is negligible, and the three rates (offered,
+admitted, completed) all agree within noise — exactly what a healthy,
+non-saturated run should look like. The [real saturation
+curve](#a-real-saturation-curve) below shows the same server pushed past
+its actual ceiling, where these numbers stop agreeing.
 
 If corrected p99 (latency or TTFT) is more than 2x its naive counterpart, a
 warning is appended automatically — no flag needed to ask for it:
@@ -136,11 +175,18 @@ Not a mock server: a real `llama-server` running Qwen2.5-0.5B-Instruct
 
 ![Saturation curves](benchmarks/2026-07-15-qwen2.5-0.5b-cpu/saturation_curves.png)
 
-Throughput tracks the offered rate through 3 req/s, then flattens at ~3.3
-req/s — this server's real ceiling at these settings. Past that knee, p99
-latency and TTFT both grow by more than 7x while throughput stays flat: the
-textbook signature of a system past capacity. Full setup, raw CSV, and the
-plotting script: [`benchmarks/2026-07-15-qwen2.5-0.5b-cpu/`](benchmarks/2026-07-15-qwen2.5-0.5b-cpu/).
+Throughput tracks the offered rate through 3 req/s, then flattens at
+~3.2-3.3 req/s — this server's real ceiling at these settings. Naive
+latency alone already shows the saturation knee at 4 req/s (peak in-flight
+climbs to 17 of the 30 sender slots available, well under the
+`-concurrency` bound); naive-vs-corrected divergence only opens up at 5
+req/s, exactly when peak waiting — the real client-side queue — jumps from
+1 to 8. That two-step handoff is the concrete version of the [narrative
+above](#why-ordinary-latency-lies-under-saturation): service metrics catch
+the saturation first, and the naive/corrected gap specifically flags once
+the generator's own dispatch starts falling behind. Full setup, raw CSV,
+and the plotting script:
+[`benchmarks/2026-07-15-qwen2.5-0.5b-cpu/`](benchmarks/2026-07-15-qwen2.5-0.5b-cpu/).
 
 ## Installation
 
@@ -182,17 +228,36 @@ first token; reporting only the naive number would silently let the exact
 blind spot this tool exists to close back in through the door TTFT leaves
 open.
 
-**Client-side backlog and `-max-queue-depth`.** A bounded sender-slot pool
-alone doesn't bound the load generator's *own* memory: with no explicit
-cap, a sustained rate the backend (or `-concurrency`) can't keep up with
-grows an unbounded goroutine backlog client-side. `-max-queue-depth N`
-caps admitted-but-not-completed requests at `concurrency+N` and drops
-excess ticks instead (reported, not silent) — see `generator:
-scheduled/dropped` and `generator: peak queue depth` in every report. This
-also disambiguates two failure modes that look identical in the latency
-numbers alone: "the backend is overloaded" (queue delay grows, nothing
-dropped) vs. "the load generator itself is the bottleneck" (peak queue
-depth balloons well past `-concurrency`, or drops start happening).
+**Peak in-flight vs. peak waiting, and `-max-queue-depth`.** A bounded
+sender-slot pool alone doesn't bound the load generator's *own* memory:
+with no explicit cap, a sustained rate the backend (or `-concurrency`)
+can't keep up with grows an unbounded goroutine backlog client-side.
+`-max-queue-depth N` caps admitted-but-not-completed requests at
+`concurrency+N` and drops excess ticks instead (reported, not silent) — the
+default is `concurrency*10`, not unbounded, so a bare `./llmpace` invocation
+can't quietly grow forever; pass `-max-queue-depth -1` to opt back into
+unbounded if you specifically want to observe backlog growth. Every report
+shows two numbers, not one combined "queue depth": **peak in-flight**
+(bounded by `-concurrency` — how many requests were concurrently being
+served by the backend) and **peak waiting** (the real client-side queue —
+how many requests were ever simultaneously blocked waiting for a free
+sender slot, not yet dispatched). This disambiguates two failure modes
+that look identical in the latency numbers alone: "the backend is
+overloaded" (peak in-flight sits at the `-concurrency` ceiling, queue delay
+grows, peak waiting stays low) vs. "the load generator itself is the
+bottleneck" (peak waiting balloons past `-concurrency`, or drops start
+happening).
+
+**Three distinct rates: offered, admitted, completed.** A single
+"throughput" number conflates three things that can legitimately diverge:
+**offered** (the nominal `-rps` target, open-loop only), **admitted**
+(`(scheduled-dropped)/wall-clock` — how many requests actually got a sender
+slot), and **completed** (successes/wall-clock — what used to be the only
+number reported). They agree only when nothing is dropped and nothing
+errors; when `-max-queue-depth` starts dropping ticks, offered and admitted
+diverge; when the backend itself is also struggling, admitted and
+completed diverge too. Reporting only one hides which stage of the pipeline
+is the actual bottleneck.
 
 **TTFT and inter-token latency (ITL).** TTFT is dominated by queueing and
 prefill; ITL — the gap between consecutive token arrivals within one
@@ -200,12 +265,28 @@ response, reported as a full p50/95/99 distribution, not a mean — is
 dominated by decode speed. A mean would hide exactly the kind of tail stall
 a user would notice mid-stream.
 
-**Chunks, not tokens.** llmpace counts non-empty streamed SSE/NDJSON events
-(`chunks_per_second_mean`, not `tokens_per_second`), because a backend is
-not guaranteed to emit exactly one tokenizer token per streamed chunk.
-Accurate tokenizer-based counting is a possible future addition (see
-[`ROADMAP.md`](ROADMAP.md)); until then the metric is named for what it
-actually measures rather than implying a precision it doesn't have.
+**Response vs. decode chunk rate, not tokens.** llmpace counts non-empty
+streamed SSE/NDJSON events, not tokenizer tokens (a backend isn't
+guaranteed to emit exactly one token per chunk) — and reports two distinct
+rates rather than one. **Response chunks/sec** divides chunk count by
+*total* request duration (`SentAt` to `DoneAt`), so it's dragged down by a
+slow prefill/TTFT. **Decode chunks/sec** divides `(chunks-1)` by the time
+from first chunk to last — pure post-first-token generation speed,
+excluding TTFT entirely, aligned with what the ITL numbers measure. A
+request with slow prefill but fast decode shows a low response rate and a
+high decode rate; collapsing them into one mean hides that distinction.
+
+**Failed requests get their own duration distribution, and errors are
+categorized.** A failed request no longer just vanishes from the summary:
+its corrected duration (`DoneAt-ScheduledAt`) is tracked separately from
+the successful-request latency percentiles, so a run where the slowest
+requests start timing out under real overload doesn't look artificially
+clean just because those requests moved into the error bucket instead of
+the tail. Errors are also bucketed into `connection_or_timeout` (no HTTP
+response at all), `http_<code>` (a non-200 response), and
+`stream_parse_error` (200 but the streamed body couldn't be parsed) —
+enough to tell "the backend is rejecting requests" apart from "the backend
+never responded" apart from "the backend responded but the stream broke."
 
 **Reservoir sampling.** Once a run exceeds `-max-samples` (default 100,000)
 requests, each metric's percentiles are computed over a uniform random
@@ -226,7 +307,7 @@ Run `./llmpace -h` for the authoritative list; summarized here:
 | `-concurrency` | `10` | Concurrent sender slots (open-loop) or concurrent clients (closed-loop) |
 | `-rps` | `10` | Target requests/sec, open-loop mode only |
 | `-duration` | `30s` | How long to run (Go duration syntax, e.g. `10m`, `1h`) |
-| `-max-queue-depth` | `0` | Open-loop only: cap admitted-but-not-completed requests at `concurrency+N`, dropping excess ticks (0 = unbounded) |
+| `-max-queue-depth` | `concurrency*10` (auto) | Open-loop only: cap admitted-but-not-completed requests at `concurrency+N`, dropping excess ticks. `-1` = explicitly unbounded; `0` = no extra queue beyond concurrency |
 | `-prompts` | `""` | JSONL file with a `"prompt"` field per line, cycled round-robin. Empty uses a small built-in default set |
 | `-output` | `""` | Path to write raw per-request JSONL results. Also writes `<path-without-ext>_summary.json` |
 | `-csv` | `""` | Path to append a one-row CSV summary — header written once, appended thereafter |
@@ -262,9 +343,11 @@ observed as they arrive, not after the fact.
 
 **Summary JSON** (`<output-path>_summary.json`) — run config plus every
 table metric (`naive_latency_p99_ms`, `corrected_ttft_p99_ms`,
-`chunks_per_second_mean`, `coordinated_omission_warning`, and a `queue`
-object with `scheduled_requests`/`dropped_requests`/`peak_queue_depth` in
-open-loop mode).
+`response_chunks_per_second_mean`, `decode_chunks_per_second_mean`,
+`failed_duration_p99_ms`, `errors_by_category`,
+`coordinated_omission_warning`, and a `queue` object with
+`scheduled_requests`/`dropped_requests`/`peak_waiting`/`peak_executing`/
+`admitted_rps` in open-loop mode).
 
 **CSV** (`-csv`) — one row per run; see `internal/report/report.go`'s
 `csvHeader` for the exact column list. Meant for sweep scripts (like the

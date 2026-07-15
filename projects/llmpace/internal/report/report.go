@@ -13,7 +13,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -27,10 +29,27 @@ import (
 // concept: a fixed number of clients each waits for its own response, so
 // nothing is ever queued or dropped by construction.
 type QueueMetadata struct {
-	Scheduled         int64 `json:"scheduled_requests"`
-	Dropped           int64 `json:"dropped_requests"`
-	PeakQueueDepth    int64 `json:"peak_queue_depth"`
+	Scheduled int64 `json:"scheduled_requests"`
+	Dropped   int64 `json:"dropped_requests"`
+	// PeakWaiting is the real client-side queue depth: the largest number
+	// of requests ever simultaneously blocked waiting for a free sender
+	// slot, not yet dispatched. PeakExecuting is how many were concurrently
+	// in flight against the backend (bounded by Concurrency itself, so
+	// rarely the interesting number) -- see dispatch.QueueStats' own note
+	// on why these are tracked separately rather than as one combined
+	// "queue depth" that conflated waiting with executing.
+	PeakWaiting       int64 `json:"peak_waiting"`
+	PeakExecuting     int64 `json:"peak_executing"`
 	MaxQueueDepthFlag int   `json:"max_queue_depth_configured"`
+	// AdmittedRPS is (Scheduled-Dropped)/wall-clock-time: the rate at which
+	// requests actually got a sender slot, as distinct from the offered
+	// rate (Metadata.RequestsPerSecond, the nominal -rps target) and the
+	// completion rate (Summary.ThroughputRPS, successes/wall-clock). Under
+	// admission control (-max-queue-depth dropping ticks), offered and
+	// admitted diverge; when the backend itself is also struggling,
+	// admitted and completion diverge too — reporting only one of the
+	// three can hide which stage of the pipeline is actually the bottleneck.
+	AdmittedRPS float64 `json:"admitted_rps"`
 }
 
 // Metadata bundles a run's configuration and result summary for the JSON
@@ -69,11 +88,19 @@ func NewMetadata(cfg config.Config, summary stats.Summary, qstats *dispatch.Queu
 		Summary:           summary,
 	}
 	if qstats != nil {
+		scheduled := qstats.Scheduled.Load()
+		dropped := qstats.Dropped.Load()
+		var admittedRPS float64
+		if summary.WallClockS > 0 {
+			admittedRPS = float64(scheduled-dropped) / summary.WallClockS
+		}
 		meta.Queue = &QueueMetadata{
-			Scheduled:         qstats.Scheduled.Load(),
-			Dropped:           qstats.Dropped.Load(),
-			PeakQueueDepth:    qstats.Peak(),
+			Scheduled:         scheduled,
+			Dropped:           dropped,
+			PeakWaiting:       qstats.PeakWaiting(),
+			PeakExecuting:     qstats.PeakExecuting(),
 			MaxQueueDepthFlag: cfg.MaxQueueDepth,
+			AdmittedRPS:       admittedRPS,
 		}
 	}
 	return meta
@@ -151,18 +178,25 @@ func PrintTable(w io.Writer, meta Metadata) {
 		fmt.Fprintf(tw, "actual duration\t%.1fs (backlog drained after the configured duration elapsed)\n", actual)
 	}
 	fmt.Fprintf(tw, "requests\t%d (%d errors, %.1f%% error rate)\n", s.N, s.Errors, s.ErrorRate*100)
-	fmt.Fprintf(tw, "throughput\t%.2f req/s\n", s.ThroughputRPS)
+	if meta.Mode == string(config.ModeOpenLoop) && meta.RequestsPerSecond > 0 {
+		fmt.Fprintf(tw, "rate: offered (nominal -rps)\t%.2f req/s\n", meta.RequestsPerSecond)
+	}
+	if q := meta.Queue; q != nil {
+		fmt.Fprintf(tw, "rate: admitted (got a sender slot)\t%.2f req/s\n", q.AdmittedRPS)
+	}
+	fmt.Fprintf(tw, "rate: completed (successes / wall clock)\t%.2f req/s\n", s.ThroughputRPS)
 	if q := meta.Queue; q != nil {
 		fmt.Fprintf(tw, "generator: scheduled/dropped\t%d / %d\n", q.Scheduled, q.Dropped)
-		if q.MaxQueueDepthFlag > 0 {
-			fmt.Fprintf(tw, "generator: peak queue depth\t%d (bound: concurrency %d + max-queue-depth %d)\n", q.PeakQueueDepth, meta.Concurrency, q.MaxQueueDepthFlag)
+		fmt.Fprintf(tw, "generator: peak in-flight\t%d (of %d sender slots)\n", q.PeakExecuting, meta.Concurrency)
+		if q.MaxQueueDepthFlag < 0 {
+			fmt.Fprintf(tw, "generator: peak waiting (real queue depth)\t%d (explicitly unbounded: -max-queue-depth -1)\n", q.PeakWaiting)
 		} else {
-			fmt.Fprintf(tw, "generator: peak queue depth\t%d (unbounded — set -max-queue-depth to cap it)\n", q.PeakQueueDepth)
+			fmt.Fprintf(tw, "generator: peak waiting (real queue depth)\t%d (bound: max-queue-depth %d)\n", q.PeakWaiting, q.MaxQueueDepthFlag)
 		}
 		if q.Dropped > 0 {
 			notes = append(notes, fmt.Sprintf("%d scheduled requests were dropped because -max-queue-depth was reached; results below only reflect admitted requests.", q.Dropped))
-		} else if q.MaxQueueDepthFlag == 0 && q.PeakQueueDepth > int64(meta.Concurrency)*3 {
-			notes = append(notes, fmt.Sprintf("peak queue depth (%d) grew well beyond -concurrency (%d) with nothing dropped — high queue delay below may reflect this generator's own backlog as much as the target's saturation. Consider raising -concurrency or setting -max-queue-depth.", q.PeakQueueDepth, meta.Concurrency))
+		} else if q.MaxQueueDepthFlag < 0 && q.PeakWaiting > int64(meta.Concurrency) {
+			notes = append(notes, fmt.Sprintf("peak waiting (%d) exceeded -concurrency (%d) with nothing dropped — this generator's own dispatch fell behind its nominal schedule, on top of whatever the target itself is doing. Consider raising -concurrency or setting -max-queue-depth.", q.PeakWaiting, meta.Concurrency))
 		}
 	}
 	fmt.Fprintln(tw, "\t\tp50\tp95\tp99")
@@ -172,11 +206,23 @@ func PrintTable(w io.Writer, meta Metadata) {
 	fmt.Fprintf(tw, "ttft (naive)\tms\t%.1f\t%.1f\t%.1f\n", s.NaiveTTFTP50Ms, s.NaiveTTFTP95Ms, s.NaiveTTFTP99Ms)
 	fmt.Fprintf(tw, "ttft (corrected)\tms\t%.1f\t%.1f\t%.1f\n", s.CorrectedTTFTP50Ms, s.CorrectedTTFTP95Ms, s.CorrectedTTFTP99Ms)
 	fmt.Fprintf(tw, "inter-token latency\tms\t%.1f\t%.1f\t%.1f\n", s.ITLP50Ms, s.ITLP95Ms, s.ITLP99Ms)
-	fmt.Fprintf(tw, "chunks/sec (mean)\t\t%.2f\n", s.ChunksPerSecondMean)
+	fmt.Fprintf(tw, "response chunks/sec (mean)\t\t%.2f\n", s.ResponseChunksPerSecondMean)
+	fmt.Fprintf(tw, "decode chunks/sec (mean)\t\t%.2f\n", s.DecodeChunksPerSecondMean)
+	if s.Errors > 0 {
+		fmt.Fprintf(tw, "failed request duration (corrected)\tms\t%.1f\t%.1f\t%.1f\n", s.FailedDurationP50Ms, s.FailedDurationP95Ms, s.FailedDurationP99Ms)
+	}
 	if s.LatencySampleN < s.N-s.Errors {
 		fmt.Fprintf(tw, "note\t\tpercentiles computed over a %d-sample reservoir (%d requests total)\n", s.LatencySampleN, s.N)
 	}
 	tw.Flush()
+	if len(s.ErrorsByCategory) > 0 {
+		categories := make([]string, 0, len(s.ErrorsByCategory))
+		for cat, count := range s.ErrorsByCategory {
+			categories = append(categories, fmt.Sprintf("%s=%d", cat, count))
+		}
+		sort.Strings(categories)
+		fmt.Fprintf(w, "\nerrors by category: %s\n", strings.Join(categories, ", "))
+	}
 	for _, note := range notes {
 		fmt.Fprintf(w, "\nNOTE: %s\n", note)
 	}
@@ -185,17 +231,23 @@ func PrintTable(w io.Writer, meta Metadata) {
 	}
 }
 
+// requests_per_second is the offered/nominal rate (the -rps flag,
+// open-loop only); admitted_rps and completed_rps are the two other
+// distinct rates a run can report — see report.QueueMetadata.AdmittedRPS
+// and stats.Summary.ThroughputRPS respectively.
 var csvHeader = []string{
 	"timestamp", "label", "backend", "mode", "target_url", "concurrency", "requests_per_second",
-	"configured_duration_s", "actual_duration_s", "n", "errors", "error_rate", "throughput_rps",
+	"configured_duration_s", "actual_duration_s", "n", "errors", "error_rate",
+	"admitted_rps", "completed_rps",
 	"naive_p50_ms", "naive_p95_ms", "naive_p99_ms",
 	"corrected_p50_ms", "corrected_p95_ms", "corrected_p99_ms",
 	"queue_delay_p50_ms", "queue_delay_p99_ms",
 	"naive_ttft_p50_ms", "naive_ttft_p95_ms", "naive_ttft_p99_ms",
 	"corrected_ttft_p50_ms", "corrected_ttft_p95_ms", "corrected_ttft_p99_ms",
 	"itl_p50_ms", "itl_p95_ms", "itl_p99_ms",
-	"chunks_per_second_mean", "coordinated_omission_warning",
-	"scheduled_requests", "dropped_requests", "peak_queue_depth", "max_queue_depth_configured",
+	"response_chunks_per_second_mean", "decode_chunks_per_second_mean", "coordinated_omission_warning",
+	"failed_duration_p50_ms", "failed_duration_p95_ms", "failed_duration_p99_ms",
+	"scheduled_requests", "dropped_requests", "peak_waiting", "peak_executing", "max_queue_depth_configured",
 }
 
 // AppendCSV appends one row summarizing this run to path, writing the
@@ -223,22 +275,28 @@ func AppendCSV(path string, meta Metadata) error {
 		}
 	}
 	s := meta.Summary
+	var admittedRPS float64
+	if q := meta.Queue; q != nil {
+		admittedRPS = q.AdmittedRPS
+	}
 	row := []string{
 		meta.Timestamp.Format(time.RFC3339), meta.Label, meta.Backend, meta.Mode, meta.TargetURL,
 		strconv.Itoa(meta.Concurrency), f64(meta.RequestsPerSecond),
-		f64(meta.DurationS), f64(s.WallClockS), strconv.Itoa(s.N), strconv.Itoa(s.Errors), f64(s.ErrorRate), f64(s.ThroughputRPS),
+		f64(meta.DurationS), f64(s.WallClockS), strconv.Itoa(s.N), strconv.Itoa(s.Errors), f64(s.ErrorRate),
+		f64(admittedRPS), f64(s.ThroughputRPS),
 		f64(s.NaiveP50Ms), f64(s.NaiveP95Ms), f64(s.NaiveP99Ms),
 		f64(s.CorrectedP50Ms), f64(s.CorrectedP95Ms), f64(s.CorrectedP99Ms),
 		f64(s.QueueDelayP50Ms), f64(s.QueueDelayP99Ms),
 		f64(s.NaiveTTFTP50Ms), f64(s.NaiveTTFTP95Ms), f64(s.NaiveTTFTP99Ms),
 		f64(s.CorrectedTTFTP50Ms), f64(s.CorrectedTTFTP95Ms), f64(s.CorrectedTTFTP99Ms),
 		f64(s.ITLP50Ms), f64(s.ITLP95Ms), f64(s.ITLP99Ms),
-		f64(s.ChunksPerSecondMean), s.CoordinatedOmissionWarning,
+		f64(s.ResponseChunksPerSecondMean), f64(s.DecodeChunksPerSecondMean), s.CoordinatedOmissionWarning,
+		f64(s.FailedDurationP50Ms), f64(s.FailedDurationP95Ms), f64(s.FailedDurationP99Ms),
 	}
 	if q := meta.Queue; q != nil {
-		row = append(row, strconv.FormatInt(q.Scheduled, 10), strconv.FormatInt(q.Dropped, 10), strconv.FormatInt(q.PeakQueueDepth, 10), strconv.Itoa(q.MaxQueueDepthFlag))
+		row = append(row, strconv.FormatInt(q.Scheduled, 10), strconv.FormatInt(q.Dropped, 10), strconv.FormatInt(q.PeakWaiting, 10), strconv.FormatInt(q.PeakExecuting, 10), strconv.Itoa(q.MaxQueueDepthFlag))
 	} else {
-		row = append(row, "", "", "", "")
+		row = append(row, "", "", "", "", "")
 	}
 	return w.Write(row)
 }
@@ -265,7 +323,7 @@ func WritePrometheus(path string, meta Metadata) error {
 	lines := []string{
 		metric("llmpace_requests_total", "", float64(s.N)),
 		metric("llmpace_errors_total", "", float64(s.Errors)),
-		metric("llmpace_throughput_rps", "", s.ThroughputRPS),
+		metric("llmpace_rate_rps", `stage="completed"`, s.ThroughputRPS),
 		metric("llmpace_latency_ms", `quantile="0.5",view="naive"`, s.NaiveP50Ms),
 		metric("llmpace_latency_ms", `quantile="0.95",view="naive"`, s.NaiveP95Ms),
 		metric("llmpace_latency_ms", `quantile="0.99",view="naive"`, s.NaiveP99Ms),
@@ -278,13 +336,19 @@ func WritePrometheus(path string, meta Metadata) error {
 		metric("llmpace_ttft_ms", `quantile="0.99",view="corrected"`, s.CorrectedTTFTP99Ms),
 		metric("llmpace_itl_ms", `quantile="0.5"`, s.ITLP50Ms),
 		metric("llmpace_itl_ms", `quantile="0.99"`, s.ITLP99Ms),
-		metric("llmpace_chunks_per_second_mean", "", s.ChunksPerSecondMean),
+		metric("llmpace_response_chunks_per_second_mean", "", s.ResponseChunksPerSecondMean),
+		metric("llmpace_decode_chunks_per_second_mean", "", s.DecodeChunksPerSecondMean),
+	}
+	if meta.Mode == string(config.ModeOpenLoop) && meta.RequestsPerSecond > 0 {
+		lines = append(lines, metric("llmpace_rate_rps", `stage="offered"`, meta.RequestsPerSecond))
 	}
 	if q := meta.Queue; q != nil {
 		lines = append(lines,
+			metric("llmpace_rate_rps", `stage="admitted"`, q.AdmittedRPS),
 			metric("llmpace_generator_scheduled_total", "", float64(q.Scheduled)),
 			metric("llmpace_generator_dropped_total", "", float64(q.Dropped)),
-			metric("llmpace_generator_peak_queue_depth", "", float64(q.PeakQueueDepth)),
+			metric("llmpace_generator_peak_waiting", "", float64(q.PeakWaiting)),
+			metric("llmpace_generator_peak_executing", "", float64(q.PeakExecuting)),
 		)
 	}
 	content := ""

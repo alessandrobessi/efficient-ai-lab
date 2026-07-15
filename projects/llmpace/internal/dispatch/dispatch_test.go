@@ -75,9 +75,11 @@ func TestRunOpenLoop_QueueDelayGrowsUnderSaturation(t *testing.T) {
 
 	// 50/s (20ms interval) against an 80ms-per-request backend, with only 1
 	// sender slot: dispatch cannot keep up, so later ticks must wait.
-	// maxQueueDepth=0: unbounded, matching this test's original intent of
-	// observing backlog growth rather than admission drops.
-	go RunOpenLoop(context.Background(), 50, 1, 0, 300*time.Millisecond, s, p, results, qstats)
+	// maxQueueDepth=-1: explicitly unbounded, matching this test's intent
+	// of observing backlog growth rather than admission drops (0 would now
+	// mean "no extra queue beyond the 1 sender slot," which would drop
+	// instead of queue).
+	go RunOpenLoop(context.Background(), 50, 1, -1, 300*time.Millisecond, s, p, results, qstats)
 
 	var collected []Result
 	for r := range results {
@@ -96,6 +98,51 @@ func TestRunOpenLoop_QueueDelayGrowsUnderSaturation(t *testing.T) {
 	// grows with the backlog — that gap is what coordinated omission hides.
 	if last.Corrected <= last.Latency {
 		t.Fatalf("expected corrected latency (%v) to exceed naive latency (%v) once queueing occurs", last.Corrected, last.Latency)
+	}
+	// With only 1 sender slot, PeakExecuting can never exceed 1 -- any real
+	// backlog here must show up as PeakWaiting, not PeakExecuting. This is
+	// the concrete proof the two are tracked independently and mean
+	// different things.
+	if got := qstats.PeakExecuting(); got > 1 {
+		t.Fatalf("PeakExecuting should never exceed slots (1), got %d", got)
+	}
+	if got := qstats.PeakWaiting(); got == 0 {
+		t.Fatal("expected real client-side queueing (PeakWaiting > 0) once the single sender slot fell behind")
+	}
+}
+
+// TestRunOpenLoop_PeakWaitingStaysLowWithGenerousConcurrency is the
+// converse proof: when -concurrency comfortably exceeds what the offered
+// rate needs (Little's Law: concurrent requests needed ~= rate * latency),
+// requests are dispatched immediately and PeakWaiting stays at (or near)
+// zero, even though PeakExecuting is nonzero -- distinguishing "requests
+// are in flight" from "requests are stuck in a real client-side queue."
+func TestRunOpenLoop_PeakWaitingStaysLowWithGenerousConcurrency(t *testing.T) {
+	srv := streamingServer(50 * time.Millisecond)
+	defer srv.Close()
+
+	p := prompts.NewDefault()
+	s := NewSender(adapter.LlamaCPP{}, srv.URL, "", 8, 0, 2*time.Second)
+	results := make(chan Result, 1024)
+	qstats := &QueueStats{}
+
+	// 20/s against a 50ms backend needs ~1 concurrent slot on average;
+	// 50 slots is comfortably more than enough. maxQueueDepth=-1 (unbounded)
+	// since this test isn't exercising the admission bound itself.
+	go RunOpenLoop(context.Background(), 20, 50, -1, 300*time.Millisecond, s, p, results, qstats)
+
+	var collected []Result
+	for r := range results {
+		collected = append(collected, r)
+	}
+	if len(collected) == 0 {
+		t.Fatal("expected at least one result")
+	}
+	if got := qstats.PeakExecuting(); got == 0 {
+		t.Fatal("expected at least one request executing at some point")
+	}
+	if got := qstats.PeakWaiting(); got > 2 {
+		t.Fatalf("expected PeakWaiting to stay near zero with generous concurrency, got %d", got)
 	}
 }
 
@@ -128,7 +175,7 @@ func TestRunOpenLoop_DropsWhenQueueDepthExceeded(t *testing.T) {
 	if qstats.Dropped.Load() == 0 {
 		t.Fatal("expected some ticks to be dropped once the bounded queue filled up")
 	}
-	if peak := qstats.Peak(); peak > int64(slots+maxQueueDepth) {
+	if peak := qstats.PeakPending(); peak > int64(slots+maxQueueDepth) {
 		t.Fatalf("peak pending (%d) exceeded the configured bound (slots=%d + maxQueueDepth=%d = %d)", peak, slots, maxQueueDepth, slots+maxQueueDepth)
 	}
 	admitted := qstats.Scheduled.Load() - qstats.Dropped.Load()
