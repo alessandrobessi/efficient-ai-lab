@@ -13,10 +13,12 @@ architecture, milestones, testing strategy).
 
 ## [`llmpace/`](llmpace/) — coordinated-omission-safe LLM load testing
 
-**`llmpace/v0.1.0` tagged** — CI on every push, cross-compilation for
-darwin/linux amd64/arm64 verified (no published binaries yet — build from
-source), builds/tests/runs end-to-end against llama.cpp, OpenAI-compatible,
-and Ollama servers.
+**`llmpace/v0.1.0` tagged; v0.1.1 in progress** (scheduled/corrected TTFT,
+bounded client-side backlog with `-max-queue-depth`, chunks-not-tokens
+naming, and a real CPU saturation benchmark with charts — see its
+[ROADMAP.md](llmpace/ROADMAP.md#v011-fixes-from-external-review)). CI on
+every push, cross-compilation for darwin/linux amd64/arm64 verified (no
+published binaries yet — build from source).
 
 Generic HTTP load testers (wrk, k6, locust) don't model LLM serving semantics —
 no native time-to-first-token or inter-token-latency reporting, no streaming

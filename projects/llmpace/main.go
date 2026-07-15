@@ -63,9 +63,11 @@ func run(args []string) error {
 	defer stop()
 
 	results := make(chan dispatch.Result, 1024)
+	var qstats *dispatch.QueueStats
 	switch cfg.Mode {
 	case config.ModeOpenLoop:
-		go dispatch.RunOpenLoop(ctx, cfg.RequestsPerSecond, cfg.Concurrency, cfg.Duration, sender, promptSource, results)
+		qstats = &dispatch.QueueStats{}
+		go dispatch.RunOpenLoop(ctx, cfg.RequestsPerSecond, cfg.Concurrency, cfg.MaxQueueDepth, cfg.Duration, sender, promptSource, results, qstats)
 	case config.ModeClosedLoop:
 		go dispatch.RunClosedLoop(ctx, cfg.Concurrency, cfg.Duration, sender, promptSource, results)
 	}
@@ -102,7 +104,7 @@ func run(args []string) error {
 	}
 
 	summary := acc.Finalize(wallClock.Seconds())
-	meta := report.NewMetadata(cfg, summary)
+	meta := report.NewMetadata(cfg, summary, qstats)
 
 	report.PrintTable(os.Stdout, meta)
 

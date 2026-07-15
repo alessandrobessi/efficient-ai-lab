@@ -24,6 +24,7 @@ type Config struct {
 	Concurrency       int
 	RequestsPerSecond float64
 	Duration          time.Duration
+	MaxQueueDepth     int
 	PromptDataset     string
 	OutputPath        string
 	CSVPath           string
@@ -47,6 +48,7 @@ func ParseFlags(args []string) (Config, error) {
 	fs.IntVar(&cfg.Concurrency, "concurrency", 10, "concurrent sender slots (open-loop) or concurrent clients (closed-loop)")
 	fs.Float64Var(&cfg.RequestsPerSecond, "rps", 10, "target requests/sec (open-loop mode)")
 	fs.DurationVar(&cfg.Duration, "duration", 30*time.Second, "how long to run")
+	fs.IntVar(&cfg.MaxQueueDepth, "max-queue-depth", 0, "open-loop mode: cap admitted-but-not-completed requests at concurrency+this many before dropping ticks (0 = unbounded, matching pre-v0.1.1 behavior)")
 	fs.StringVar(&cfg.PromptDataset, "prompts", "", "JSONL file with a 'prompt' field per line, cycled round-robin (default: small built-in prompt set)")
 	fs.StringVar(&cfg.OutputPath, "output", "", "path to write raw per-request JSONL results (optional)")
 	fs.StringVar(&cfg.CSVPath, "csv", "", "path to append a one-row CSV summary (optional, for comparing multiple runs)")
@@ -76,6 +78,9 @@ func ParseFlags(args []string) (Config, error) {
 	}
 	if cfg.ReservoirCap < 1 {
 		return Config{}, errors.New("-max-samples must be >= 1")
+	}
+	if cfg.MaxQueueDepth < 0 {
+		return Config{}, errors.New("-max-queue-depth must be >= 0")
 	}
 
 	return cfg, nil

@@ -1,15 +1,59 @@
 # llmpace — Development Roadmap
 
-**Status: M0-M4 implemented — v0.1.0 tagged.** The architecture below
-reflects what was actually built (see `internal/`), not just a plan. Two
-deliberate simplifications remain from the original plan and are not
-expected to change for v0.1.x: the YAML multi-stage test-plan file (config
-is CLI-flags-only for now, single stage per run) and a live `/metrics`
-Prometheus endpoint (a static textfile-collector-format dump via
+**Status: M0-M4 implemented (v0.1.0 tagged); v0.1.1 in progress.** The
+architecture below reflects what was actually built (see `internal/`), not
+just a plan. Two deliberate simplifications remain from the original plan
+and are not expected to change for v0.1.x: the YAML multi-stage test-plan
+file (config is CLI-flags-only for now, single stage per run) and a live
+`/metrics` Prometheus endpoint (a static textfile-collector-format dump via
 `-prometheus-out` exists instead) — both noted inline below where they
-diverge. A real multi-hour soak run against a live backend also hasn't
-been executed (see M3's status) — the bounded-memory mechanism itself is
-unit-tested, but real-world validation at that scale is still open.
+diverge.
+
+## v0.1.1: fixes from external review
+
+An external review of v0.1.0 (recorded in full in project history) found
+three real correctness/design gaps and asked for a real benchmark as
+evidence. All four were addressed:
+
+1. **TTFT was only ever measured from `SentAt`, never `ScheduledAt`** —
+   inconsistent with how total latency was already handled, and able to
+   look clean even when a request was queued a long time before dispatch.
+   Fixed: `NaiveTTFT`/`CorrectedTTFT` now exist in parallel with
+   `Naive`/`Corrected` latency, all the way through `dispatch.Result` →
+   `stats.Summary` → every report format. The divergence warning now checks
+   both metrics independently (`TestAccumulator_FlagsTTFTDivergenceEvenWhenLatencyLooksFine`
+   is the behavioral proof that TTFT's warning does real, independent work,
+   not just piggybacking on latency's).
+2. **Open-loop dispatch spawned an unbounded number of goroutines under
+   sustained overload** — a bounded sender-slot pool doesn't bound the load
+   generator's *own* memory, and a self-inflicted client bottleneck (too few
+   sender slots for the offered rate) could be mistaken for the backend
+   being overloaded, since both look like growing queue delay. Fixed:
+   `dispatch.QueueStats` + `-max-queue-depth` (drop-tail admission control,
+   caps admitted-but-not-completed requests at `concurrency+N`), reported
+   scheduled/dropped/peak-queue-depth counts in every output format, and an
+   explicit configured-vs-actual-duration split in the table (backlog
+   drain time is no longer invisible). See
+   `TestRunOpenLoop_DropsWhenQueueDepthExceeded` for the behavioral proof
+   the bound actually holds under `-race`.
+3. **"Tokens" were actually stream chunks** — no adapter guarantees exactly
+   one tokenizer token per streamed SSE/NDJSON event. Renamed throughout:
+   `TokensGenerated`→`StreamChunks`, `tokens_per_second_mean`→
+   `chunks_per_second_mean`, table row "tokens/sec"→"chunks/sec". Real
+   tokenizer-based counting remains a possible future addition (see
+   [Explicitly deferred](#explicitly-deferred-documented-limitation-not-silently-omitted)).
+4. **No real benchmark evidence** — added
+   [`benchmarks/2026-07-15-qwen2.5-0.5b-cpu/`](benchmarks/2026-07-15-qwen2.5-0.5b-cpu/):
+   a real `llama-server` (Qwen2.5-0.5B-Instruct Q4_K_M) on an Apple M4 CPU,
+   swept 1-5 req/s, with raw CSV, a plotting script, and 4 charts showing
+   the saturation knee. Its own README documents exact hardware/model/
+   commit/methodology and is honest about what's shortened relative to a
+   rigorous benchmark (20s/point rather than 5-10 min, one concurrency
+   setting, no repeated runs).
+
+A real multi-hour soak run against a live backend still hasn't been
+executed — the bounded-memory mechanism itself is unit-tested (Reservoir up
+to 200k samples), but real-world validation at that scale remains open.
 
 ## Why this exists
 
@@ -69,13 +113,15 @@ projects/llmpace/
 │   │   ├── openai.go               /v1/chat/completions, SSE
 │   │   └── ollama.go               /api/generate, NDJSON
 │   ├── dispatch/                 (evolves internal/worker/)
-│   │   ├── openloop.go             default mode
+│   │   ├── sender.go               builds+sends+times one request end-to-end
+│   │   ├── openloop.go             default mode; QueueStats admission control (v0.1.1)
 │   │   └── closedloop.go           opt-in, documented CO-correction limitation
 │   ├── stats/                    (ported from internal/stats/)
 │   ├── prompts/                  (ported from internal/prompts/)
 │   ├── config/                   flags (stdlib) + optional YAML test-plan file
 │   └── report/                   human table, JSON, CSV, Prometheus exposition
-└── ROADMAP.md, README.md, LICENSE
+├── benchmarks/                   real (not mock) saturation-curve runs, one dir per run
+└── ROADMAP.md, README.md, CONTRIBUTING.md, LICENSE
 ```
 
 **`Adapter` interface** — the core new abstraction (as implemented, in
@@ -87,10 +133,12 @@ type Adapter interface {
     BuildRequest(ctx context.Context, baseURL string, req Request) (*http.Request, error)
     // Stream reads resp.Body incrementally, invoking onToken with the
     // wall-clock time each token/chunk was observed — no adapter buffers a
-    // full response. Returns the total number of tokens seen; TTFT and
-    // inter-token gaps are derived by the caller (internal/dispatch.Sender)
-    // from the onToken timestamps, not returned here.
-    Stream(resp *http.Response, onToken func(t time.Time)) (tokens int, err error)
+    // full response. Returns the total number of stream chunks seen (not
+    // guaranteed to equal tokenizer token count — see v0.1.1 note above);
+    // TTFT and inter-token gaps are derived by the caller
+    // (internal/dispatch.Sender) from the onToken timestamps, not returned
+    // here.
+    Stream(resp *http.Response, onToken func(t time.Time)) (chunks int, err error)
 }
 ```
 
@@ -106,11 +154,28 @@ there is nothing for the correction to reveal. The `ScheduledAt`/`SentAt`/
 `DoneAt` triad from `openloop.go` is preserved because it's exactly what makes
 the correction possible.
 
-**Measurement** — TTFT is time-of-first-streamed-token minus `SentAt`.
-Inter-token latency is reported as a full distribution (p50/95/99), not a
-mean, because tail ITL is exactly what coordinated omission hides. Every
-report shows naive and corrected percentiles side by side, with a warning
-when they diverge by more than 2x, rather than requiring a flag to opt in.
+**Admission control (`QueueStats`, v0.1.1)** — `openloop.go`'s dispatcher
+loop tracks, via atomics safe for concurrent access from spawned goroutines:
+`Scheduled` (every tick that fired), `Dropped` (ticks refused once the
+queue hit its bound), and a high-water-mark `peak` of admitted-but-not-
+completed requests. `-max-queue-depth N` (default 0 = unbounded, the
+original behavior) caps admission at `concurrency+N`; a tick beyond that is
+dropped rather than spawning another goroutine. This makes an otherwise
+silent, unboundedly-growing client-side backlog into an explicit, reported
+number — see `TestRunOpenLoop_DropsWhenQueueDepthExceeded`, which asserts
+under `-race` that peak pending never exceeds the configured bound and that
+dropped ticks are actually counted, not just silently absorbed.
+
+**Measurement** — TTFT and total latency both get naive (`SentAt`-anchored)
+and corrected (`ScheduledAt`-anchored) views, for the same reason: a request
+queued a long time before ever being dispatched can show a perfectly clean
+naive TTFT even though a real user waited far longer for their first token
+(this was a real bug in v0.1.0, fixed in v0.1.1 — see above). Inter-token
+latency is reported as a full distribution (p50/95/99), not a mean, because
+tail ITL is exactly what coordinated omission hides. Every report shows
+naive and corrected percentiles side by side for both metrics, with a
+warning when either diverges by more than 2x, rather than requiring a flag
+to opt in.
 
 **Config** — CLI flags (stdlib `flag`) cover single-run usage
 (`internal/config/config.go`). **Deviation from the original plan:** the
@@ -164,6 +229,7 @@ long a run lasts. Below that many requests, the reservoir holds every value
 | **M2** | Add OpenAI-compatible and Ollama adapters | **Done** — `TestOpenAI_StreamStopsAtDoneSentinel`, `TestOllama_StreamNDJSONStopsAtDone` |
 | **M3** | CSV/Prometheus output, bounded-memory design | **Mostly done** — reservoir sampling, CSV, and Prometheus textfile output are implemented and unit-tested; a real multi-hour soak run against a live backend has not actually been executed, only the bounded-memory mechanism itself (unit tests up to 200k samples). YAML config file explicitly deferred (see note above) |
 | **M4** | Docs, CI, `CONTRIBUTING.md`, tagged `v0.1.0` with cross-compiled binaries | **Mostly done** — `.github/workflows/llmpace-ci.yml` (build/vet/test/gofmt on every push/PR touching `projects/llmpace/**`), `CONTRIBUTING.md`, git tag `llmpace/v0.1.0`, and a `-version` flag baked in via `-ldflags`, verified against a real ldflags build. Cross-compilation for darwin/linux amd64/arm64 was built and smoke-tested locally, but **no GitHub Release with downloadable binaries has been published** — that step was deliberately held back pending the maintainer's own call on publishing publicly. The soak-test and YAML-config gaps noted under M3 are still open too — this milestone is about packaging/release infrastructure, not closing those |
+| **M5** | v0.1.1: fixes from external review — scheduled/corrected TTFT, bounded client-side backlog, chunks-not-tokens naming, a real benchmark | **Done** — see [v0.1.1: fixes from external review](#v011-fixes-from-external-review) above for the full breakdown |
 
 ## Testing strategy
 
@@ -174,27 +240,45 @@ long a run lasts. Below that many requests, the reservoir holds every value
   corrected latency exceeds naive latency once queueing occurs.
   `internal/stats/stats_test.go`'s `TestAccumulator_FlagsCoordinatedOmission`
   and `TestAccumulator_NoWarningWhenLatenciesAgree` are the equivalent proof
-  for the divergence-warning logic itself.
+  for the divergence-warning logic itself. v0.1.1 added
+  `TestAccumulator_FlagsTTFTDivergenceEvenWhenLatencyLooksFine` (constructs a
+  case where total latency's own divergence stays under threshold while
+  TTFT's crosses it, proving the two warnings are independent, not one
+  piggybacking on the other) and `TestRunOpenLoop_DropsWhenQueueDepthExceeded`
+  (under `-race`: asserts peak pending never exceeds the configured
+  `concurrency+maxQueueDepth` bound, and that dropped ticks are actually
+  counted).
 - **Adapter tests** via `httptest` (`internal/adapter/*_test.go`) using
   hand-written synthetic SSE/NDJSON fixtures, covering stream-termination
   correctness (must stop at `stop:true` / `[DONE]` / `done:true` and not count
   or hang on trailing data after it). Recorded-real traffic fixtures from an
-  actual llama.cpp/Ollama server are not yet included — a reasonable M4
+  actual llama.cpp/Ollama server are not yet included — a reasonable future
   addition once one is convenient to capture.
 - **No live-server tier in CI.** `.github/workflows/llmpace-ci.yml` runs
   `gofmt`/`go vet`/`go build`/`go test -race` on every push/PR touching
   `projects/llmpace/**` — all against mocks and stub servers, same as the
-  local suite. A real end-to-end run against a live inference server was
-  done manually during development (see the Quickstart in `README.md`) and
-  remains a manual step, not something CI depends on.
+  local suite. A real end-to-end run against a live inference server *was*
+  done manually — see
+  [`benchmarks/2026-07-15-qwen2.5-0.5b-cpu/`](benchmarks/2026-07-15-qwen2.5-0.5b-cpu/),
+  a real `llama-server` + real GGUF model swept across request rates,
+  showing a genuine saturation knee — but this remains a manual step, not
+  something CI depends on or automatically reruns.
 
 ## Explicitly deferred (documented limitation, not silently omitted)
 
-Gil Tene-style synthetic sample backfill for closed-loop coordinated-omission
-correction is not implemented in v0.1.0 — open-loop-by-default already covers
-the common case this tool is built for, and closed-loop is kept only for
-parity with the old tool's mode, with its CO-unsafety documented rather than
-worked around.
+- **Gil Tene-style synthetic sample backfill** for closed-loop
+  coordinated-omission correction is not implemented — open-loop-by-default
+  already covers the common case this tool is built for, and closed-loop is
+  kept only for parity with the old tool's mode, with its CO-unsafety
+  documented rather than worked around.
+- **Tokenizer-based token counting.** v0.1.0 counted streamed SSE/NDJSON
+  chunks and called them tokens; v0.1.1 renamed the metric
+  (`StreamChunks`/`chunks_per_second_mean`) to describe what it actually
+  measures rather than implying a precision it doesn't have. Adding a real
+  tokenizer (matching the model in use) to count actual output tokens would
+  be a legitimate improvement, but is a genuinely separate feature — it
+  needs a tokenizer dependency and per-model vocabulary handling, not just a
+  rename — and isn't planned for v0.1.x.
 
 ## License
 

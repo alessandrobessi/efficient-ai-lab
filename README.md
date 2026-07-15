@@ -231,8 +231,12 @@ real gap rather than staying a research artifact. Both live under
   load testing tool, addressing what Week 8 found firsthand: generic load
   testers don't model streaming (TTFT/inter-token latency) and are easy to get
   coordinated omission wrong on, hiding exactly the tail latency that matters
-  under load. **`llmpace/v0.1.0` tagged**, with CI; cross-compilation for
-  darwin/linux amd64/arm64 is verified but not yet published as a release.
+  under load. **`llmpace/v0.1.0` tagged, v0.1.1 in progress** — an external
+  review prompted fixes for scheduled/corrected TTFT, a bounded client-side
+  request queue, honest chunk-vs-token naming, and a real CPU saturation
+  benchmark with charts (not a mock). CI on every push; cross-compilation
+  for darwin/linux amd64/arm64 is verified but not yet published as a
+  release.
 - **[`quantscope`](projects/quantscope/)** — a GGUF quantization / CPU-kernel-fit
   profiler, addressing what Weeks 4 and 6 found repeatedly: quantization
   speed and memory don't correlate cleanly with bit-width or parameter count,

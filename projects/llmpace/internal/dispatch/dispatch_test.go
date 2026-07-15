@@ -71,10 +71,13 @@ func TestRunOpenLoop_QueueDelayGrowsUnderSaturation(t *testing.T) {
 	p := prompts.NewDefault()
 	s := NewSender(adapter.LlamaCPP{}, srv.URL, "", 8, 0, 2*time.Second)
 	results := make(chan Result, 1024)
+	qstats := &QueueStats{}
 
 	// 50/s (20ms interval) against an 80ms-per-request backend, with only 1
 	// sender slot: dispatch cannot keep up, so later ticks must wait.
-	go RunOpenLoop(context.Background(), 50, 1, 300*time.Millisecond, s, p, results)
+	// maxQueueDepth=0: unbounded, matching this test's original intent of
+	// observing backlog growth rather than admission drops.
+	go RunOpenLoop(context.Background(), 50, 1, 0, 300*time.Millisecond, s, p, results, qstats)
 
 	var collected []Result
 	for r := range results {
@@ -96,6 +99,44 @@ func TestRunOpenLoop_QueueDelayGrowsUnderSaturation(t *testing.T) {
 	}
 }
 
+// TestRunOpenLoop_DropsWhenQueueDepthExceeded is the concrete proof for the
+// bug this test guards against: without a bound, a backend that can never
+// keep up makes the load generator itself accumulate an ever-growing
+// backlog of goroutines. With -max-queue-depth set, admission is capped at
+// slots+maxQueueDepth and excess ticks are dropped (counted, not silently
+// queued) instead.
+func TestRunOpenLoop_DropsWhenQueueDepthExceeded(t *testing.T) {
+	srv := streamingServer(200 * time.Millisecond) // much slower than the tick interval below
+	defer srv.Close()
+
+	p := prompts.NewDefault()
+	s := NewSender(adapter.LlamaCPP{}, srv.URL, "", 8, 0, 2*time.Second)
+	results := make(chan Result, 1024)
+	qstats := &QueueStats{}
+
+	const slots = 1
+	const maxQueueDepth = 2
+	// 100/s (10ms interval) against a 200ms-per-request backend with only 1
+	// slot: massively oversaturated, so the bound must actually bind.
+	go RunOpenLoop(context.Background(), 100, slots, maxQueueDepth, 300*time.Millisecond, s, p, results, qstats)
+
+	var collected []Result
+	for r := range results {
+		collected = append(collected, r)
+	}
+
+	if qstats.Dropped.Load() == 0 {
+		t.Fatal("expected some ticks to be dropped once the bounded queue filled up")
+	}
+	if peak := qstats.Peak(); peak > int64(slots+maxQueueDepth) {
+		t.Fatalf("peak pending (%d) exceeded the configured bound (slots=%d + maxQueueDepth=%d = %d)", peak, slots, maxQueueDepth, slots+maxQueueDepth)
+	}
+	admitted := qstats.Scheduled.Load() - qstats.Dropped.Load()
+	if int64(len(collected)) > admitted {
+		t.Fatalf("collected %d results but only %d ticks were admitted", len(collected), admitted)
+	}
+}
+
 func TestSender_Do_RecordsTTFTAndInterTokenGaps(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -109,16 +150,26 @@ func TestSender_Do_RecordsTTFTAndInterTokenGaps(t *testing.T) {
 	defer srv.Close()
 
 	s := NewSender(adapter.LlamaCPP{}, srv.URL, "", 8, 0, 2*time.Second)
-	res := s.Do(context.Background(), "prompt", time.Now())
+	// scheduledAt is set before sentAt so NaiveTTFT (from SentAt) and
+	// CorrectedTTFT (from ScheduledAt) are provably different values, not
+	// just two names for the same measurement.
+	scheduledAt := time.Now().Add(-100 * time.Millisecond)
+	res := s.Do(context.Background(), "prompt", scheduledAt)
 
 	if res.Error != "" {
 		t.Fatalf("unexpected error: %s", res.Error)
 	}
-	if res.TokensGenerated != 2 {
-		t.Fatalf("TokensGenerated = %d, want 2", res.TokensGenerated)
+	if res.StreamChunks != 2 {
+		t.Fatalf("StreamChunks = %d, want 2", res.StreamChunks)
 	}
-	if res.TTFT <= 0 {
-		t.Fatalf("expected positive TTFT, got %v", res.TTFT)
+	if res.NaiveTTFT <= 0 {
+		t.Fatalf("expected positive NaiveTTFT, got %v", res.NaiveTTFT)
+	}
+	if res.CorrectedTTFT <= res.NaiveTTFT {
+		t.Fatalf("expected CorrectedTTFT (%v) > NaiveTTFT (%v) since scheduledAt precedes sentAt", res.CorrectedTTFT, res.NaiveTTFT)
+	}
+	if res.CorrectedTTFT-res.NaiveTTFT < 90*time.Millisecond {
+		t.Fatalf("expected CorrectedTTFT to exceed NaiveTTFT by ~100ms (the scheduling gap), got %v", res.CorrectedTTFT-res.NaiveTTFT)
 	}
 	if len(res.InterTokenGapsMs) != 1 {
 		t.Fatalf("expected 1 inter-token gap for 2 tokens, got %d", len(res.InterTokenGapsMs))

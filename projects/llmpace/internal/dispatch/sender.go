@@ -18,22 +18,35 @@ import (
 // latency, plus the streaming measurements (TTFT and per-token gaps) that
 // only exist because the response was consumed as it arrived rather than
 // read in full before being timed.
+//
+// TTFT is reported both ways for the same reason total latency is: NaiveTTFT
+// (FirstTokenAt-SentAt) is what a load tester sees if it only times from
+// actual dispatch; CorrectedTTFT (FirstTokenAt-ScheduledAt) is what a real,
+// constant-arrival-rate user experienced, including any time the request
+// spent queued before it was ever sent. Reporting only NaiveTTFT would let
+// the exact coordinated-omission blind spot this tool exists to close back
+// in through the one measurement it forgot to correct.
 type Result struct {
-	ScheduledAt time.Time     `json:"scheduled_at"`
-	SentAt      time.Time     `json:"sent_at"`
-	DoneAt      time.Time     `json:"done_at"`
-	Latency     time.Duration `json:"latency_ns"`
-	Corrected   time.Duration `json:"corrected_latency_ns"`
-	QueueDelay  time.Duration `json:"queue_delay_ns"`
-	TTFT        time.Duration `json:"ttft_ns"`
+	ScheduledAt   time.Time     `json:"scheduled_at"`
+	SentAt        time.Time     `json:"sent_at"`
+	DoneAt        time.Time     `json:"done_at"`
+	Latency       time.Duration `json:"latency_ns"`
+	Corrected     time.Duration `json:"corrected_latency_ns"`
+	QueueDelay    time.Duration `json:"queue_delay_ns"`
+	NaiveTTFT     time.Duration `json:"naive_ttft_ns"`
+	CorrectedTTFT time.Duration `json:"corrected_ttft_ns"`
 	// InterTokenGapsMs holds the gap, in milliseconds, between each pair of
 	// consecutive token arrivals for this one request. Reported per-request
 	// (not just as a mean) so the stats package can fold every request's
 	// gaps into one shared distribution.
 	InterTokenGapsMs []float64 `json:"inter_token_gaps_ms,omitempty"`
-	TokensGenerated  int       `json:"tokens_generated"`
-	StatusCode       int       `json:"status_code"`
-	Error            string    `json:"error,omitempty"`
+	// StreamChunks counts non-empty streamed content events (SSE "data:"
+	// lines / NDJSON lines), not tokenizer tokens — a backend is not
+	// guaranteed to emit exactly one token per streamed chunk. See
+	// internal/adapter's Stream docs.
+	StreamChunks int    `json:"stream_chunks"`
+	StatusCode   int    `json:"status_code"`
+	Error        string `json:"error,omitempty"`
 }
 
 // Sender issues one generation request end-to-end: build, send, stream the
@@ -105,9 +118,10 @@ func (s *Sender) Do(ctx context.Context, prompt string, scheduledAt time.Time) R
 		return finish()
 	}
 
-	res.TokensGenerated = tokens
+	res.StreamChunks = tokens
 	if len(tokenTimes) > 0 {
-		res.TTFT = tokenTimes[0].Sub(sentAt)
+		res.NaiveTTFT = tokenTimes[0].Sub(sentAt)
+		res.CorrectedTTFT = tokenTimes[0].Sub(scheduledAt)
 	}
 	if len(tokenTimes) > 1 {
 		gaps := make([]float64, 0, len(tokenTimes)-1)

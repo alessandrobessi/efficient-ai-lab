@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -78,6 +79,58 @@ func TestAccumulator_FlagsCoordinatedOmission(t *testing.T) {
 	s := acc.Finalize(1.0)
 	if s.CoordinatedOmissionWarning == "" {
 		t.Fatal("expected a coordinated-omission warning when corrected p99 far exceeds naive p99")
+	}
+}
+
+func resultWithTTFT(scheduledAt, sentAt, doneAt, firstTokenAt time.Time) dispatch.Result {
+	return dispatch.Result{
+		ScheduledAt:   scheduledAt,
+		SentAt:        sentAt,
+		DoneAt:        doneAt,
+		Latency:       doneAt.Sub(sentAt),
+		Corrected:     doneAt.Sub(scheduledAt),
+		QueueDelay:    sentAt.Sub(scheduledAt),
+		NaiveTTFT:     firstTokenAt.Sub(sentAt),
+		CorrectedTTFT: firstTokenAt.Sub(scheduledAt),
+		StreamChunks:  1,
+		StatusCode:    200,
+	}
+}
+
+// TestAccumulator_FlagsTTFTDivergenceEvenWhenLatencyLooksFine is the direct
+// behavioral proof for the bug this test guards against: TTFT used to be
+// measured only from SentAt, so a request queued for a long time before
+// ever being dispatched could show a perfectly clean TTFT even though a
+// real user waited far longer for their first token. Here total latency's
+// own divergence stays under the warning threshold (1.7x) while corrected
+// TTFT's divergence (2.4x) crosses it — proving the TTFT warning is doing
+// real, independent work, not just piggybacking on the latency one.
+func TestAccumulator_FlagsTTFTDivergenceEvenWhenLatencyLooksFine(t *testing.T) {
+	acc := NewAccumulator(1000)
+	base := time.Now()
+	for i := 0; i < 100; i++ {
+		sentAt := base
+		doneAt := base.Add(10 * time.Millisecond)
+		firstTokenAt := base.Add(5 * time.Millisecond)
+		scheduledAt := base
+		if i == 99 {
+			// Queued 700ms before actually being sent; once dispatched, both
+			// the first token and the full response arrive just as fast as
+			// every other request (naive TTFT and naive latency stay clean).
+			scheduledAt = base.Add(-700 * time.Millisecond)
+		}
+		acc.Add(resultWithTTFT(scheduledAt, sentAt, doneAt, firstTokenAt))
+	}
+	s := acc.Finalize(1.0)
+
+	if latencyRatio := s.CorrectedP99Ms / s.NaiveP99Ms; latencyRatio > DivergenceThreshold {
+		t.Fatalf("test setup invalid: latency ratio %.2f already exceeds threshold, doesn't isolate the TTFT-only case", latencyRatio)
+	}
+	if s.CoordinatedOmissionWarning == "" {
+		t.Fatal("expected a coordinated-omission warning naming TTFT even though latency alone would not have fired one")
+	}
+	if !strings.Contains(s.CoordinatedOmissionWarning, "TTFT") {
+		t.Fatalf("expected warning to mention TTFT specifically, got: %s", s.CoordinatedOmissionWarning)
 	}
 }
 

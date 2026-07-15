@@ -8,6 +8,7 @@ package stats
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/alessandrobessi/efficient-ai-lab/projects/llmpace/internal/dispatch"
@@ -48,15 +49,32 @@ type Summary struct {
 	QueueDelayP50Ms float64 `json:"queue_delay_p50_ms"`
 	QueueDelayP99Ms float64 `json:"queue_delay_p99_ms"`
 
-	TTFTP50Ms float64 `json:"ttft_p50_ms"`
-	TTFTP95Ms float64 `json:"ttft_p95_ms"`
-	TTFTP99Ms float64 `json:"ttft_p99_ms"`
+	// NaiveTTFT* uses FirstTokenAt-SentAt — analogous to Naive* latency
+	// above, and just as incomplete on its own: it excludes any time a
+	// request spent queued before it was ever sent, so it can look clean
+	// even while real users are waiting far longer for their first token.
+	NaiveTTFTP50Ms float64 `json:"naive_ttft_p50_ms"`
+	NaiveTTFTP95Ms float64 `json:"naive_ttft_p95_ms"`
+	NaiveTTFTP99Ms float64 `json:"naive_ttft_p99_ms"`
+
+	// CorrectedTTFT* uses FirstTokenAt-ScheduledAt — what a real,
+	// constant-arrival-rate user actually waited for their first token,
+	// queueing included. Always reported alongside NaiveTTFT* for the same
+	// reason latency is: reading only the naive view under load is exactly
+	// what coordinated omission looks like from the inside.
+	CorrectedTTFTP50Ms float64 `json:"corrected_ttft_p50_ms"`
+	CorrectedTTFTP95Ms float64 `json:"corrected_ttft_p95_ms"`
+	CorrectedTTFTP99Ms float64 `json:"corrected_ttft_p99_ms"`
 
 	ITLP50Ms float64 `json:"itl_p50_ms"`
 	ITLP95Ms float64 `json:"itl_p95_ms"`
 	ITLP99Ms float64 `json:"itl_p99_ms"`
 
-	TokensPerSecondMean float64 `json:"tokens_per_second_mean"`
+	// ChunksPerSecondMean averages, per request, streamed-chunk count over
+	// elapsed time. Named for what it actually measures (see
+	// dispatch.Result.StreamChunks) rather than "tokens/sec," since a
+	// streamed chunk is not guaranteed to be exactly one tokenizer token.
+	ChunksPerSecondMean float64 `json:"chunks_per_second_mean"`
 
 	// SampledN is the number of samples percentiles were actually computed
 	// over, per metric family (they can differ slightly since errored
@@ -65,9 +83,11 @@ type Summary struct {
 	LatencySampleN    int `json:"latency_sample_n"`
 	LatencyReservoirN int `json:"latency_reservoir_cap"`
 
-	// CoordinatedOmissionWarning is non-empty when CorrectedP99Ms is more
-	// than DivergenceThreshold times NaiveP99Ms — a sign that reading only
-	// the naive numbers would have understated tail latency substantially.
+	// CoordinatedOmissionWarning is non-empty when either CorrectedP99Ms or
+	// CorrectedTTFTP99Ms is more than DivergenceThreshold times its naive
+	// counterpart — a sign that reading only the naive numbers would have
+	// understated tail latency (or tail TTFT) substantially. Can name one
+	// or both metrics.
 	CoordinatedOmissionWarning string `json:"coordinated_omission_warning,omitempty"`
 }
 
@@ -102,10 +122,10 @@ type Accumulator struct {
 	reservoirCap int
 	n, errors    int
 
-	naive, corrected, queueDelay, ttft, itl *Reservoir
+	naive, corrected, queueDelay, naiveTTFT, correctedTTFT, itl *Reservoir
 
-	tokensPerSecSum   float64
-	tokensPerSecCount int
+	chunksPerSecSum   float64
+	chunksPerSecCount int
 }
 
 func NewAccumulator(reservoirCap int) *Accumulator {
@@ -113,12 +133,13 @@ func NewAccumulator(reservoirCap int) *Accumulator {
 		reservoirCap = DefaultReservoirCap
 	}
 	return &Accumulator{
-		reservoirCap: reservoirCap,
-		naive:        NewReservoir(reservoirCap),
-		corrected:    NewReservoir(reservoirCap),
-		queueDelay:   NewReservoir(reservoirCap),
-		ttft:         NewReservoir(reservoirCap),
-		itl:          NewReservoir(reservoirCap),
+		reservoirCap:  reservoirCap,
+		naive:         NewReservoir(reservoirCap),
+		corrected:     NewReservoir(reservoirCap),
+		queueDelay:    NewReservoir(reservoirCap),
+		naiveTTFT:     NewReservoir(reservoirCap),
+		correctedTTFT: NewReservoir(reservoirCap),
+		itl:           NewReservoir(reservoirCap),
 	}
 }
 
@@ -131,15 +152,16 @@ func (a *Accumulator) Add(r dispatch.Result) {
 	a.naive.Add(ms(r.Latency))
 	a.corrected.Add(ms(r.Corrected))
 	a.queueDelay.Add(ms(r.QueueDelay))
-	if r.TokensGenerated > 0 {
-		a.ttft.Add(ms(r.TTFT))
+	if r.StreamChunks > 0 {
+		a.naiveTTFT.Add(ms(r.NaiveTTFT))
+		a.correctedTTFT.Add(ms(r.CorrectedTTFT))
 	}
 	for _, gap := range r.InterTokenGapsMs {
 		a.itl.Add(gap)
 	}
-	if elapsed := r.DoneAt.Sub(r.SentAt); elapsed > 0 && r.TokensGenerated > 0 {
-		a.tokensPerSecSum += float64(r.TokensGenerated) / elapsed.Seconds()
-		a.tokensPerSecCount++
+	if elapsed := r.DoneAt.Sub(r.SentAt); elapsed > 0 && r.StreamChunks > 0 {
+		a.chunksPerSecSum += float64(r.StreamChunks) / elapsed.Seconds()
+		a.chunksPerSecCount++
 	}
 }
 
@@ -184,30 +206,43 @@ func (a *Accumulator) Finalize(wallClockSeconds float64) Summary {
 	s.QueueDelayP50Ms = Percentile(a.queueDelay.Values(), 50)
 	s.QueueDelayP99Ms = Percentile(a.queueDelay.Values(), 99)
 
-	s.TTFTP50Ms = Percentile(a.ttft.Values(), 50)
-	s.TTFTP95Ms = Percentile(a.ttft.Values(), 95)
-	s.TTFTP99Ms = Percentile(a.ttft.Values(), 99)
+	s.NaiveTTFTP50Ms = Percentile(a.naiveTTFT.Values(), 50)
+	s.NaiveTTFTP95Ms = Percentile(a.naiveTTFT.Values(), 95)
+	s.NaiveTTFTP99Ms = Percentile(a.naiveTTFT.Values(), 99)
+
+	s.CorrectedTTFTP50Ms = Percentile(a.correctedTTFT.Values(), 50)
+	s.CorrectedTTFTP95Ms = Percentile(a.correctedTTFT.Values(), 95)
+	s.CorrectedTTFTP99Ms = Percentile(a.correctedTTFT.Values(), 99)
 
 	s.ITLP50Ms = Percentile(a.itl.Values(), 50)
 	s.ITLP95Ms = Percentile(a.itl.Values(), 95)
 	s.ITLP99Ms = Percentile(a.itl.Values(), 99)
 
-	if a.tokensPerSecCount > 0 {
-		s.TokensPerSecondMean = a.tokensPerSecSum / float64(a.tokensPerSecCount)
+	if a.chunksPerSecCount > 0 {
+		s.ChunksPerSecondMean = a.chunksPerSecSum / float64(a.chunksPerSecCount)
 	}
 
+	var facts []string
 	if s.NaiveP99Ms > 0 && s.CorrectedP99Ms > DivergenceThreshold*s.NaiveP99Ms {
-		s.CoordinatedOmissionWarning = coWarning(s.NaiveP99Ms, s.CorrectedP99Ms)
+		facts = append(facts, coFact("latency", s.NaiveP99Ms, s.CorrectedP99Ms))
+	}
+	if s.NaiveTTFTP99Ms > 0 && s.CorrectedTTFTP99Ms > DivergenceThreshold*s.NaiveTTFTP99Ms {
+		facts = append(facts, coFact("TTFT", s.NaiveTTFTP99Ms, s.CorrectedTTFTP99Ms))
+	}
+	if len(facts) > 0 {
+		s.CoordinatedOmissionWarning = fmt.Sprintf(
+			"%s — the target may be overloaded (or the load generator's own -concurrency/-max-queue-depth may be the bottleneck); trust corrected, not naive, numbers",
+			strings.Join(facts, "; "),
+		)
 	}
 
 	return s
 }
 
-func coWarning(naiveP99, correctedP99 float64) string {
+func coFact(metric string, naiveP99, correctedP99 float64) string {
 	return fmt.Sprintf(
-		"corrected p99 latency (%.1fms) is more than %.0fx naive p99 (%.1fms) — "+
-			"the target is likely overloaded; trust corrected, not naive, numbers",
-		correctedP99, DivergenceThreshold, naiveP99,
+		"corrected p99 %s (%.1fms) is more than %.0fx naive p99 %s (%.1fms)",
+		metric, correctedP99, DivergenceThreshold, metric, naiveP99,
 	)
 }
 
