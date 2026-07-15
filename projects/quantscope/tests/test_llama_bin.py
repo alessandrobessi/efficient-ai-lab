@@ -10,13 +10,21 @@ from quantscope.llama_bin import (
     run_llama_quantize,
 )
 
-# A trimmed but realistic llama-bench -o csv header/row pair: one row for a
+# A realistic llama-bench -o csv header/row pair: one row for a
 # prompt-processing test (n_gen=0), one for a token-generation test
 # (n_prompt=0) -- llama-bench's actual behavior when both -p and -n are given.
+# Includes the full provenance columns (build/cpu/gpu/backend/config) that
+# a real llama-bench emits, not just the speed columns.
 BENCH_CSV = (
-    "build_commit,model_size,model_n_params,n_prompt,n_gen,avg_ts,stddev_ts\n"
-    "abc123,4370000000,8000000000,512,0,145.32,1.1\n"
-    "abc123,4370000000,8000000000,0,128,42.87,0.5\n"
+    "build_commit,cpu_info,gpu_info,backends,model_type,model_size,model_n_params,"
+    "n_batch,n_ubatch,n_threads,n_gpu_layers,flash_attn,use_mmap,"
+    "n_prompt,n_gen,avg_ts,stddev_ts\n"
+    "abc123,Apple M4,Metal,CPU,qwen2 0.5B,4370000000,8000000000,"
+    "2048,512,8,0,0,1,"
+    "512,0,145.32,1.1\n"
+    "abc123,Apple M4,Metal,CPU,qwen2 0.5B,4370000000,8000000000,"
+    "2048,512,8,0,0,1,"
+    "0,128,42.87,0.5\n"
 )
 
 
@@ -34,6 +42,18 @@ def test_run_llama_bench_parses_prompt_and_gen_rows():
     assert prompt_row.avg_tokens_per_second == 145.32
     assert gen_row.avg_tokens_per_second == 42.87
     assert prompt_row.model_size_bytes == 4370000000
+    assert prompt_row.model_n_params == 8000000000
+    assert prompt_row.stddev_tokens_per_second == 1.1
+    assert prompt_row.build_commit == "abc123"
+    assert prompt_row.n_gpu_layers == 0
+
+
+def test_run_llama_bench_always_forces_ngl_zero():
+    with patch("subprocess.run", return_value=_completed(stdout=BENCH_CSV)) as mock_run:
+        run_llama_bench("llama-bench", "model.gguf", n_prompt=512, n_gen=128, threads=4)
+    cmd = mock_run.call_args.args[0]
+    assert "-ngl" in cmd
+    assert cmd[cmd.index("-ngl") + 1] == "0"
 
 
 def test_run_llama_bench_raises_on_nonzero_exit():
@@ -52,6 +72,14 @@ def test_run_llama_quantize_success():
     with patch("subprocess.run", return_value=_completed(returncode=0)) as mock_run:
         run_llama_quantize("llama-quantize", "in.gguf", "out.gguf", "Q4_K_M")
     assert mock_run.call_args.args[0] == ["llama-quantize", "in.gguf", "out.gguf", "Q4_K_M"]
+
+
+def test_run_llama_quantize_passes_imatrix_when_given():
+    with patch("subprocess.run", return_value=_completed(returncode=0)) as mock_run:
+        run_llama_quantize("llama-quantize", "in.gguf", "out.gguf", "IQ2_XXS", imatrix_path="calibration.dat")
+    assert mock_run.call_args.args[0] == [
+        "llama-quantize", "--imatrix", "calibration.dat", "in.gguf", "out.gguf", "IQ2_XXS",
+    ]
 
 
 def test_run_llama_quantize_raises_on_failure():

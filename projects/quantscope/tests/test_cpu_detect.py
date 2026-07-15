@@ -22,12 +22,24 @@ def test_parse_llama_feature_line_extracts_flags():
 
 def test_unused_but_supported_flags_divergence():
     llama_features = {"AVX2": False, "FMA": True}
-    os_features = {"AVX2": True, "FMA": True, "SSE4_2": True}
+    os_features = {"AVX2": True, "FMA": True, "AVX512": True}
     diverging = unused_but_supported(llama_features, os_features)
-    # AVX2: OS says yes, build says no -> divergence.
+    # AVX2: OS says yes, build says no -> divergence (relevant feature).
     # FMA: both agree yes -> no divergence.
-    # SSE4_2: OS says yes, build doesn't mention it at all -> divergence.
-    assert diverging == ["AVX2", "SSE4_2"]
+    # AVX512: OS says yes, build doesn't mention it at all -> divergence
+    # (still a relevant, SIMD-related feature, just missing from the
+    # build's own reported set entirely).
+    assert diverging == ["AVX2", "AVX512"]
+
+
+def test_unused_but_supported_ignores_irrelevant_os_flags():
+    # /proc/cpuinfo-style flags that have nothing to do with GGML's compute
+    # kernels must never be reported as a divergence, even though llama.cpp
+    # never mentions them either -- llama.cpp not reporting on APIC/MSR/PAE
+    # doesn't mean anything, since it was never going to report on them.
+    llama_features = {"AVX2": True}
+    os_features = {"AVX2": True, "APIC": True, "MSR": True, "PAE": True, "MTRR": True}
+    assert unused_but_supported(llama_features, os_features) == []
 
 
 def test_unused_but_supported_no_divergence_when_build_uses_everything_os_reports():

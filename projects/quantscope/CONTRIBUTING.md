@@ -31,13 +31,14 @@ updated `uv.lock` — `--locked` in CI fails otherwise.
 See the [Architecture section of README.md](README.md#architecture) for the
 package tree. In short: `llama_bin.py` is the only module that shells out to
 llama.cpp binaries; every other module (`cpu_detect.py`, `formats.py`,
-`bench.py`, `predict.py`, `quantize.py`, `report.py`) is pure logic that
-takes already-parsed data in and returns already-parsed data out — this
-split is what makes almost the whole test suite mock-free and fast.
+`bench.py`, `estimate.py`, `quantize.py`, `report.py`, `manifest.py`) is
+pure logic that takes already-parsed data in and returns already-parsed
+data out — this split is what makes almost the whole test suite mock-free
+and fast.
 
 ## Adding a new subcommand
 
-1. Add the actual logic as a pure function/module first (see `predict.py`
+1. Add the actual logic as a pure function/module first (see `estimate.py`
    for the simplest example — no subprocess calls at all).
 2. If it needs a llama.cpp binary, add a thin wrapper to `llama_bin.py` that
    runs the subprocess and parses its output, raising `LlamaBinError` on

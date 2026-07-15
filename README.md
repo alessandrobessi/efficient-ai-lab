@@ -241,8 +241,12 @@ real gap rather than staying a research artifact. Both live under
   profiler, addressing what Weeks 4 and 6 found repeatedly: quantization
   speed and memory don't correlate cleanly with bit-width or parameter count,
   and finding the fast format for a given model+CPU took hours of manual
-  benchmarking with no automated tool to do it. **`quantscope/v0.1.0`
-  tagged**, with CI; not yet published to PyPI or as a release artifact.
+  benchmarking with no automated tool to do it. **`quantscope/v0.2.0`
+  tagged** — an external review prompted fixes forcing CPU-only inference,
+  validating model identity across a sweep, real imatrix support, and a
+  real 8-format benchmark that found an 8-bit format beating four smaller
+  ones on speed. CI on every push; not yet published to PyPI or as a
+  release artifact.
 
 ## 14. Publication
 

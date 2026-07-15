@@ -1,7 +1,7 @@
 [project]
 name = "quantscope"
-version = "0.1.0"
-description = "A CLI that sweeps GGUF quantization formats against llama-bench and llama-quantize to find the fastest format for a given model and CPU, and reports the speed/memory/quality tradeoffs as a Pareto frontier."
+version = "0.2.0"
+description = "A CLI that sweeps GGUF quantization formats against llama-bench, llama-quantize, and llama-perplexity to find the fastest format for a given model on CPU, and reports the speed/memory/quality tradeoffs as a Pareto frontier."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

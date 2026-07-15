@@ -37,6 +37,22 @@ _ALIASES = {
     "NEON_FP16": "FP16_VA",
 }
 
+# The only features unused_but_supported() will ever flag a divergence on —
+# SIMD/compute-relevant flags llama.cpp's own system_info line actually
+# reports on some architecture. Without this restriction, every OS-reported
+# flag llama.cpp doesn't happen to mention (on Linux, /proc/cpuinfo lists
+# dozens of unrelated flags like APIC, MSR, PAE, MTRR, TSC, CLFLUSH) would be
+# misreported as "CPU supports this but the build doesn't use it," when in
+# reality it's simply irrelevant to GGML's compute kernels and llama.cpp
+# never claims to report on it either way.
+_RELEVANT_FEATURES = frozenset({
+    "AVX", "AVX2", "AVX_VNNI", "AVX512", "AVX512_VBMI", "AVX512_VNNI", "AVX512_BF16",
+    "FMA", "F16C", "SSE3", "SSSE3",
+    "NEON", "SVE", "ARM_FMA", "FP16_VA",
+    "MATMUL_INT8", "VSX", "VXE",
+    "RISCV_VECT", "WASM_SIMD",
+})
+
 
 def parse_llama_feature_line(text: str) -> dict[str, bool]:
     """Parses `NAME = 0`/`NAME = 1` tokens out of llama.cpp's system_info
@@ -102,7 +118,11 @@ def _canonicalize(name: str) -> str:
 def unused_but_supported(llama_features: dict[str, bool], os_features: dict[str, bool]) -> list[str]:
     """Returns feature names the OS reports as present that this llama.cpp
     build's system_info line does not report as in use (either reported
-    False, or not mentioned at all).
+    False, or not mentioned at all) -- restricted to _RELEVANT_FEATURES, so
+    an OS-reported flag outside that vocabulary is treated as "not
+    compared," not "unused by the build" (see _RELEVANT_FEATURES' docstring
+    for why: llama.cpp not mentioning a flag doesn't mean anything for
+    flags it was never going to report on in the first place).
     """
     llama_canonical = {_canonicalize(k): v for k, v in llama_features.items()}
     diverging = []
@@ -110,6 +130,8 @@ def unused_but_supported(llama_features: dict[str, bool], os_features: dict[str,
         if not os_supported:
             continue
         canonical = _canonicalize(name)
+        if canonical not in _RELEVANT_FEATURES:
+            continue
         if llama_canonical.get(canonical) is not True:
             diverging.append(name)
     return sorted(diverging)

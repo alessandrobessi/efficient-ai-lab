@@ -1,8 +1,9 @@
-"""Thin subprocess wrappers around llama.cpp's own `llama-bench` and
-`llama-quantize` binaries — quantscope never reimplements GGML kernel
-benchmarking or quantization itself, the same "wrap, don't reimplement"
-principle behind `experiments/02-llama-cpp/scripts/llama_cpp_runner.py`'s
-`run_llama_bench`/`run_llama_bench_single_rep`, which this module evolves.
+"""Thin subprocess wrappers around llama.cpp's own `llama-bench`,
+`llama-quantize`, and `llama-perplexity` binaries — quantscope never
+reimplements GGML kernel benchmarking or quantization itself, the same
+"wrap, don't reimplement" principle behind
+`experiments/02-llama-cpp/scripts/llama_cpp_runner.py`'s `run_llama_bench`/
+`run_llama_bench_single_rep`, which this module evolves.
 """
 
 from __future__ import annotations
@@ -27,15 +28,30 @@ class LlamaBinError(RuntimeError):
 
 @dataclass
 class BenchRow:
-    """One row of llama-bench's own CSV output, for one test (a prompt-processing
-    or token-generation test), narrowed to what quantscope actually uses.
+    """One row of llama-bench's own CSV output, for one test (a
+    prompt-processing or token-generation test). Keeps the full provenance
+    llama-bench itself reports (build/CPU/GPU/backend/config), not just the
+    speed number — a benchmark result without this is not reproducible by
+    someone else, or by the same person six months later.
     """
 
     n_prompt: int
     n_gen: int
     avg_tokens_per_second: float
+    stddev_tokens_per_second: float
     model_size_bytes: int
     model_n_params: int
+    model_type: str
+    build_commit: str
+    cpu_info: str
+    gpu_info: str
+    backends: str
+    n_threads: int
+    n_batch: int
+    n_ubatch: int
+    n_gpu_layers: int
+    flash_attn: str
+    use_mmap: str
 
 
 def run_llama_bench(
@@ -50,6 +66,12 @@ def run_llama_bench(
     (n_prompt tokens) and a token-generation test (n_gen tokens), and
     returns both as separate rows — llama-bench reports the average over
     `repetitions` internally (`-r`), we don't re-average here.
+
+    Always passes `-ngl 0`: quantscope profiles CPU inference specifically
+    (its own name and purpose), and llama-bench's own default
+    (`-ngl -1`, maximal offload) would silently benchmark GPU-accelerated
+    inference on any machine with Metal/CUDA/Vulkan support compiled in,
+    answering a different question than the one quantscope claims to.
     """
     cmd = [
         llama_bench_bin,
@@ -58,6 +80,7 @@ def run_llama_bench(
         "-n", str(n_gen),
         "-t", str(threads),
         "-r", str(repetitions),
+        "-ngl", "0",
         "-o", "csv",
     ]
     proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -75,8 +98,20 @@ def _parse_bench_csv(csv_text: str) -> list[BenchRow]:
                     n_prompt=int(record["n_prompt"]),
                     n_gen=int(record["n_gen"]),
                     avg_tokens_per_second=float(record["avg_ts"]),
+                    stddev_tokens_per_second=float(record.get("stddev_ts", 0.0) or 0.0),
                     model_size_bytes=int(record.get("model_size", 0)),
                     model_n_params=int(record.get("model_n_params", 0)),
+                    model_type=record.get("model_type", ""),
+                    build_commit=record.get("build_commit", ""),
+                    cpu_info=record.get("cpu_info", ""),
+                    gpu_info=record.get("gpu_info", ""),
+                    backends=record.get("backends", ""),
+                    n_threads=int(record.get("n_threads", 0) or 0),
+                    n_batch=int(record.get("n_batch", 0) or 0),
+                    n_ubatch=int(record.get("n_ubatch", 0) or 0),
+                    n_gpu_layers=int(record.get("n_gpu_layers", 0) or 0),
+                    flash_attn=record.get("flash_attn", ""),
+                    use_mmap=record.get("use_mmap", ""),
                 )
             )
         except (KeyError, ValueError) as e:
@@ -91,12 +126,21 @@ def run_llama_quantize(
     input_gguf: str,
     output_gguf: str,
     format_name: str,
+    imatrix_path: str | None = None,
 ) -> None:
     """Produces output_gguf in format_name from input_gguf. Raises
     LlamaBinError on failure; quantscope never guesses at a quantized
     file's existence, it either has one or it invokes this to make one.
+
+    imatrix_path, if given, is passed through to llama-quantize's own
+    `--imatrix` flag — required for IQ* formats to quantize well (see
+    quantize.py's applicability check, which enforces this before ever
+    calling here).
     """
-    cmd = [llama_quantize_bin, input_gguf, output_gguf, format_name]
+    cmd = [llama_quantize_bin]
+    if imatrix_path:
+        cmd += ["--imatrix", imatrix_path]
+    cmd += [input_gguf, output_gguf, format_name]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         raise LlamaBinError(
@@ -122,9 +166,12 @@ def run_llama_perplexity(
     threads: int = 4,
 ) -> float:
     """Runs llama-perplexity over dataset_path and returns the final PPL
-    estimate — the measured quality axis `bench --quality-eval` adds
-    alongside speed/size, so a format comparison can include "what do you
-    give up" and not just "how much faster is it."
+    estimate — the raw quantization-loss-proxy measurement `bench`'s
+    perplexity options add alongside speed/size. Callers are responsible
+    for turning this into a delta/ratio against a reference format (see
+    bench.py) — llama.cpp's own docs are explicit that a bare perplexity
+    number is only meaningful relative to a same-model, same-tokenizer
+    reference, not as an absolute "quality" score.
     """
     cmd = [
         llama_perplexity_bin,

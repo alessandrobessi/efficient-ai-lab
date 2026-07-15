@@ -4,7 +4,7 @@ available (matching the roadmap's own testing strategy: unit/CLI tests
 never require a real llama.cpp build; only a manual pre-release step does).
 """
 
-import os
+import json
 import stat
 
 from quantscope.cli import main
@@ -12,9 +12,9 @@ from quantscope.cli import main
 LLAMA_BENCH_STUB = """#!/bin/sh
 if [ "$1" = "-m" ]; then
   cat <<'CSV'
-build_commit,model_size,model_n_params,n_prompt,n_gen,avg_ts,stddev_ts
-abc123,4370000000,8000000000,512,0,145.32,1.1
-abc123,4370000000,8000000000,0,128,42.87,0.5
+build_commit,cpu_info,gpu_info,backends,model_type,model_size,model_n_params,n_batch,n_ubatch,n_threads,n_gpu_layers,flash_attn,use_mmap,n_prompt,n_gen,avg_ts,stddev_ts
+abc123,Apple M4,Metal,CPU,qwen2 0.5B,4370000000,8000000000,2048,512,8,0,0,1,512,0,145.32,1.1
+abc123,Apple M4,Metal,CPU,qwen2 0.5B,4370000000,8000000000,2048,512,8,0,0,1,0,128,42.87,0.5
 CSV
   exit 0
 else
@@ -33,7 +33,11 @@ Allowed quantization types:
 HELP
   exit 0
 fi
-touch "$2"
+if [ "$1" = "--imatrix" ]; then
+  touch "$4"
+else
+  touch "$2"
+fi
 exit 0
 """
 
@@ -59,12 +63,12 @@ def test_cli_version(capsys):
     assert "quantscope" in out
 
 
-def test_cli_predict(capsys):
-    rc = main(["predict", "Q8_0", "Q4_0", "F16"])
+def test_cli_estimate_size(capsys):
+    rc = main(["estimate-size", "Q8_0", "Q4_0", "F16"])
     assert rc == 0
     out = capsys.readouterr().out
     assert "Q4_0" in out
-    assert "heuristic only, not a measurement" in out
+    assert "NOT a speed" in out
 
 
 def test_cli_formats(tmp_path, capsys):
@@ -77,9 +81,11 @@ def test_cli_formats(tmp_path, capsys):
     assert "excluded (need an imatrix): IQ2_XXS" in out
 
 
-def test_cli_formats_with_imatrix(tmp_path, capsys):
+def test_cli_formats_with_imatrix_path(tmp_path, capsys):
     stub = _write_stub(tmp_path / "llama-quantize", LLAMA_QUANTIZE_STUB)
-    rc = main(["formats", "--llama-quantize-bin", stub, "--imatrix"])
+    calibration = tmp_path / "calibration.dat"
+    calibration.write_bytes(b"0")
+    rc = main(["formats", "--llama-quantize-bin", stub, "--imatrix", str(calibration)])
     assert rc == 0
     out = capsys.readouterr().out
     assert "excluded" not in out
@@ -113,7 +119,75 @@ def test_cli_bench_end_to_end(tmp_path, capsys):
     assert "Q4_K_M" in out
     assert out_csv.exists()
     assert "pareto_optimal" in out_csv.read_text()
-    assert "perplexity" not in out_csv.read_text()  # no --quality-eval given
+    assert "perplexity" not in out_csv.read_text()  # no quality eval given
+
+    manifest_path = tmp_path / "results_manifest.json"
+    assert manifest_path.exists()
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["cpu_info"] == "Apple M4"
+    assert manifest["n_gpu_layers"] == 0
+    assert len(manifest["models"]) == 1
+    assert manifest["models"][0]["sha256"]  # hashing on by default
+
+
+def test_cli_bench_skip_hash(tmp_path):
+    bench_stub = _write_stub(tmp_path / "llama-bench", LLAMA_BENCH_STUB)
+    gguf_path = tmp_path / "model-q4.gguf"
+    gguf_path.write_bytes(b"0" * 1024)
+    out_csv = tmp_path / "results.csv"
+
+    main(["bench", "--llama-bench-bin", bench_stub, "--gguf", f"Q4_K_M={gguf_path}", "--output", str(out_csv), "--skip-hash"])
+    manifest = json.loads((tmp_path / "results_manifest.json").read_text())
+    assert manifest["models"][0]["sha256"] == ""
+
+
+def test_cli_bench_rejects_mismatched_models(tmp_path):
+    # sweep()'s own mismatch-detection logic is covered thoroughly in
+    # test_bench.py; this only confirms the CLI surfaces it as a clean
+    # SystemExit rather than a raw traceback. Since --llama-bench-bin is one
+    # binary shared across every --gguf entry in real usage, this stub
+    # decides which model_n_params to report based on the GGUF path it's
+    # given, to simulate two --gguf entries secretly being different models.
+    stub_script = """#!/bin/sh
+if [ "$1" = "-m" ]; then
+  case "$2" in
+    *other*)
+      cat <<'CSV'
+build_commit,cpu_info,gpu_info,backends,model_type,model_size,model_n_params,n_batch,n_ubatch,n_threads,n_gpu_layers,flash_attn,use_mmap,n_prompt,n_gen,avg_ts,stddev_ts
+abc123,Apple M4,Metal,CPU,qwen2 3B,8000000000,3000000000,2048,512,8,0,0,1,512,0,90.0,1.0
+abc123,Apple M4,Metal,CPU,qwen2 3B,8000000000,3000000000,2048,512,8,0,0,1,0,128,25.0,0.5
+CSV
+      ;;
+    *)
+      cat <<'CSV'
+build_commit,cpu_info,gpu_info,backends,model_type,model_size,model_n_params,n_batch,n_ubatch,n_threads,n_gpu_layers,flash_attn,use_mmap,n_prompt,n_gen,avg_ts,stddev_ts
+abc123,Apple M4,Metal,CPU,qwen2 0.5B,4370000000,8000000000,2048,512,8,0,0,1,512,0,145.32,1.1
+abc123,Apple M4,Metal,CPU,qwen2 0.5B,4370000000,8000000000,2048,512,8,0,0,1,0,128,42.87,0.5
+CSV
+      ;;
+  esac
+  exit 0
+fi
+exit 1
+"""
+    stub = _write_stub(tmp_path / "llama-bench-mixed", stub_script)
+    q4_path = tmp_path / "model-q4.gguf"
+    other_path = tmp_path / "model-other.gguf"
+    q4_path.write_bytes(b"0" * 1024)
+    other_path.write_bytes(b"0" * 1024)
+
+    try:
+        main(
+            [
+                "bench",
+                "--llama-bench-bin", stub,
+                "--gguf", f"Q4_K_M={q4_path}",
+                "--gguf", f"Q3_K_M={other_path}",
+            ]
+        )
+        assert False, "expected SystemExit"
+    except SystemExit as e:
+        assert "same base model" in str(e)
 
 
 def test_cli_bench_with_quality_eval(tmp_path, capsys):
@@ -133,6 +207,7 @@ def test_cli_bench_with_quality_eval(tmp_path, capsys):
             "--llama-perplexity-bin", perplexity_stub,
             "--perplexity-dataset", str(dataset),
             "--output", str(out_csv),
+            "--skip-hash",
         ]
     )
     assert rc == 0
@@ -157,4 +232,68 @@ def test_cli_bench_quality_eval_requires_both_flags(tmp_path):
         )
         assert False, "expected SystemExit"
     except SystemExit as e:
-        assert "quality-eval" in str(e)
+        assert "quality evaluation" in str(e)
+
+
+def test_cli_quantize_rejects_iq_without_imatrix(tmp_path):
+    stub = _write_stub(tmp_path / "llama-quantize", LLAMA_QUANTIZE_STUB)
+    input_gguf = tmp_path / "model-f16.gguf"
+    input_gguf.write_bytes(b"0")
+
+    try:
+        main(
+            [
+                "quantize",
+                "--llama-quantize-bin", stub,
+                "--input", str(input_gguf),
+                "--output-dir", str(tmp_path / "out"),
+                "IQ2_XXS",
+            ]
+        )
+        assert False, "expected SystemExit"
+    except SystemExit as e:
+        assert "imatrix" in str(e)
+
+
+def test_cli_quantize_with_imatrix_succeeds(tmp_path, capsys):
+    stub = _write_stub(tmp_path / "llama-quantize", LLAMA_QUANTIZE_STUB)
+    input_gguf = tmp_path / "model-f16.gguf"
+    input_gguf.write_bytes(b"0")
+    calibration = tmp_path / "calibration.dat"
+    calibration.write_bytes(b"0")
+
+    rc = main(
+        [
+            "quantize",
+            "--llama-quantize-bin", stub,
+            "--input", str(input_gguf),
+            "--output-dir", str(tmp_path / "out"),
+            "--imatrix", str(calibration),
+            "IQ2_XXS",
+        ]
+    )
+    assert rc == 0
+    assert (tmp_path / "out" / "model-f16-IQ2_XXS.gguf").exists()
+
+
+def test_cli_recommend_filters_csv(tmp_path, capsys):
+    csv_path = tmp_path / "results.csv"
+    csv_path.write_text(
+        "format,file_size_mb,gen_tokens_per_second\n"
+        "Q4_K_M,4000,40\n"
+        "Q8_0,8000,60\n"
+        "Q2_K,2000,25\n"
+    )
+    rc = main(["recommend", "--csv", str(csv_path), "--max-size-gb", "5"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Q8_0" not in out
+    assert "Q4_K_M" in out
+    assert "Q2_K" in out
+
+
+def test_cli_recommend_no_match(tmp_path, capsys):
+    csv_path = tmp_path / "results.csv"
+    csv_path.write_text("format,file_size_mb,gen_tokens_per_second\nQ8_0,8000,60\n")
+    rc = main(["recommend", "--csv", str(csv_path), "--max-size-gb", "1"])
+    assert rc == 1
