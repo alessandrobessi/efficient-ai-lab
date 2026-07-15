@@ -1,6 +1,6 @@
 # llmpace — Development Roadmap
 
-**Status: M0-M5 implemented — `llmpace/v0.1.2` (this branch, pending tag).** The
+**Status: M0-M6 implemented — `llmpace/v0.1.2` tagged.** The
 architecture below reflects what was actually built (see `internal/`), not
 just a plan. Two deliberate simplifications remain from the original plan
 and are not expected to change for v0.1.x: the YAML multi-stage test-plan
@@ -300,7 +300,7 @@ long a run lasts. Below that many requests, the reservoir holds every value
 | **M1** | Streaming + TTFT/ITL for llama.cpp, open-loop-by-default | **Done** — `TestSender_Do_RecordsTTFTAndInterTokenGaps`, `TestLlamaCPP_StreamCountsTokensAndStopsAtStop`; verified end-to-end against a local mock SSE server |
 | **M2** | Add OpenAI-compatible and Ollama adapters | **Done** — `TestOpenAI_StreamStopsAtDoneSentinel`, `TestOllama_StreamNDJSONStopsAtDone` |
 | **M3** | CSV/Prometheus output, bounded-memory design | **Mostly done** — reservoir sampling, CSV, and Prometheus textfile output are implemented and unit-tested; a real multi-hour soak run against a live backend has not actually been executed, only the bounded-memory mechanism itself (unit tests up to 200k samples). YAML config file explicitly deferred (see note above) |
-| **M4** | Docs, CI, `CONTRIBUTING.md`, tagged `v0.1.0` with cross-compiled binaries | **Mostly done** — `.github/workflows/llmpace-ci.yml` (build/vet/test/gofmt on every push/PR touching `projects/llmpace/**`), `CONTRIBUTING.md`, git tag `llmpace/v0.1.0`, and a `-version` flag baked in via `-ldflags`, verified against a real ldflags build. Cross-compilation for darwin/linux amd64/arm64 was built and smoke-tested locally, but **no GitHub Release with downloadable binaries has been published** — that step was deliberately held back pending the maintainer's own call on publishing publicly. The soak-test and YAML-config gaps noted under M3 are still open too — this milestone is about packaging/release infrastructure, not closing those |
+| **M4** | Docs, CI, `CONTRIBUTING.md`, tagged `v0.1.0` with cross-compiled binaries | **Done** — `.github/workflows/llmpace-ci.yml` (build/vet/test/gofmt on every push/PR touching `projects/llmpace/**`), `CONTRIBUTING.md`, a `-version` flag baked in via `-ldflags`. Cross-compiled darwin/linux amd64/arm64 binaries are published on the [GitHub releases page](https://github.com/alessandrobessi/efficient-ai-lab/releases) as of `llmpace/v0.1.2`. The soak-test and YAML-config gaps noted under M3 are still open — this milestone is about packaging/release infrastructure, not closing those |
 | **M5** | v0.1.1: fixes from external review — scheduled/corrected TTFT, bounded client-side backlog, chunks-not-tokens naming, a real benchmark | **Done** — see [v0.1.1: fixes from external review](#v011-fixes-from-external-review) above for the full breakdown |
 | **M6** | v0.1.2: fixes from a second external review — genuinely CPU-only benchmark, peak-waiting/peak-executing split, safer `-max-queue-depth` default, failed-request tracking, response/decode chunk-rate split, refined CO narrative, distinct offered/admitted/completed rates | **Done** — see [v0.1.2: fixes from a second external review](#v012-fixes-from-a-second-external-review) above for the full breakdown |
 

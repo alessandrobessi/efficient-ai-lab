@@ -13,12 +13,15 @@ architecture, milestones, testing strategy).
 
 ## [`llmpace/`](llmpace/) — coordinated-omission-safe LLM load testing
 
-**[`llmpace/v0.1.1`](https://github.com/alessandrobessi/efficient-ai-lab/tree/llmpace/v0.1.1) tagged** (scheduled/corrected TTFT,
-bounded client-side backlog with `-max-queue-depth`, chunks-not-tokens
-naming, and a real CPU saturation benchmark with charts — see its
-[ROADMAP.md](llmpace/ROADMAP.md#v011-fixes-from-external-review)). CI on
-every push, cross-compilation for darwin/linux amd64/arm64 verified (no
-published binaries yet — build from source).
+**[`llmpace/v0.1.2`](https://github.com/alessandrobessi/efficient-ai-lab/tree/llmpace/v0.1.2) tagged** (scheduled/corrected TTFT
+for both latency and TTFT, a bounded and correctly-defaulted client-side
+backlog split into peak-in-flight/peak-waiting, distinct offered/admitted/
+completed request rates, per-category failure tracking, chunks-not-tokens
+naming, and a genuinely CPU-only saturation benchmark with charts — see its
+[ROADMAP.md](llmpace/ROADMAP.md#v012-fixes-from-a-second-external-review)).
+CI on every push; cross-compiled darwin/linux amd64/arm64 binaries are
+published on the
+[releases page](https://github.com/alessandrobessi/efficient-ai-lab/releases).
 
 Generic HTTP load testers (wrk, k6, locust) don't model LLM serving semantics —
 no native time-to-first-token or inter-token-latency reporting, no streaming
