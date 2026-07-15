@@ -231,7 +231,7 @@ real gap rather than staying a research artifact. Both live under
   load testing tool, addressing what Week 8 found firsthand: generic load
   testers don't model streaming (TTFT/inter-token latency) and are easy to get
   coordinated omission wrong on, hiding exactly the tail latency that matters
-  under load. **`llmpace/v0.1.0` tagged, v0.1.1 in progress** — an external
+  under load. **[`llmpace/v0.1.1`](https://github.com/alessandrobessi/efficient-ai-lab/tree/llmpace/v0.1.1) tagged** — an external
   review prompted fixes for scheduled/corrected TTFT, a bounded client-side
   request queue, honest chunk-vs-token naming, and a real CPU saturation
   benchmark with charts (not a mock). CI on every push; cross-compilation

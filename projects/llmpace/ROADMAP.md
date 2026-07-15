@@ -1,6 +1,6 @@
 # llmpace — Development Roadmap
 
-**Status: M0-M4 implemented (v0.1.0 tagged); v0.1.1 in progress.** The
+**Status: M0-M5 implemented — `llmpace/v0.1.1` tagged.** The
 architecture below reflects what was actually built (see `internal/`), not
 just a plan. Two deliberate simplifications remain from the original plan
 and are not expected to change for v0.1.x: the YAML multi-stage test-plan

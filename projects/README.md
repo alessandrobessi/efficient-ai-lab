@@ -13,7 +13,7 @@ architecture, milestones, testing strategy).
 
 ## [`llmpace/`](llmpace/) — coordinated-omission-safe LLM load testing
 
-**`llmpace/v0.1.0` tagged; v0.1.1 in progress** (scheduled/corrected TTFT,
+**[`llmpace/v0.1.1`](https://github.com/alessandrobessi/efficient-ai-lab/tree/llmpace/v0.1.1) tagged** (scheduled/corrected TTFT,
 bounded client-side backlog with `-max-queue-depth`, chunks-not-tokens
 naming, and a real CPU saturation benchmark with charts — see its
 [ROADMAP.md](llmpace/ROADMAP.md#v011-fixes-from-external-review)). CI on

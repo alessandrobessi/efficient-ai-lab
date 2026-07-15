@@ -6,7 +6,7 @@ A small, inspectable, dependency-free Go load generator for LLM inference
 servers that makes **scheduled-vs-service latency** impossible to overlook —
 one static binary, stdlib only, no Python environment required.
 
-**Status: [`llmpace/v0.1.0`](https://github.com/alessandrobessi/efficient-ai-lab/tree/llmpace/v0.1.0) tagged, v0.1.1 in progress.**
+**Status: [`llmpace/v0.1.1`](https://github.com/alessandrobessi/efficient-ai-lab/tree/llmpace/v0.1.1) tagged.**
 No pre-built binaries published yet — build from source (below). See
 [`ROADMAP.md`](ROADMAP.md) for full design rationale and [Known
 limitations](#known-limitations) for what's still open.
