@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from quantscope.report import pareto_optimal_flags, plot_frontier, rank_table, recommend
+from quantscope.report import DEFAULT_PPL_ABSOLUTE_TOLERANCE, pareto_optimal_flags, plot_frontier, rank_table, recommend
 
 # size should be minimized, speed maximized.
 ROWS = [
@@ -67,6 +67,59 @@ def test_epsilon_dominance_still_catches_material_differences():
     by_format = dict(zip((r["format"] for r in rows), flags))
     assert by_format["fast"] is True
     assert by_format["same_speed_bigger"] is False
+
+
+def test_relative_epsilon_gives_near_zero_tolerance_around_a_zero_baseline():
+    # The bug this fix responds to: a relative tolerance around ppl_delta=0
+    # (the baseline format's own entry) is itself ~0, so even a tiny,
+    # noise-level difference from the baseline counts as "material" --
+    # the advertised 2% noise protection silently doesn't apply to the one
+    # row that needs it most.
+    rows = [
+        {"format": "F16", "size": 10, "ppl_delta": 0.0},
+        {"format": "Q8_0", "size": 8, "ppl_delta": 0.001},  # tiny, likely noise
+    ]
+    flags = pareto_optimal_flags(rows, minimize=["size", "ppl_delta"], maximize=[])
+    by_format = dict(zip((r["format"] for r in rows), flags))
+    # Without an absolute tolerance, Q8_0's smaller size can't compensate --
+    # F16 counts as "materially better on ppl_delta" purely from relative-
+    # to-zero noise, even though 0.001 is negligible in absolute terms.
+    assert by_format["F16"] is True
+
+
+def test_absolute_tolerance_fixes_the_zero_baseline_case():
+    rows = [
+        {"format": "F16", "size": 10, "ppl_delta": 0.0},
+        {"format": "Q8_0", "size": 8, "ppl_delta": 0.001},
+    ]
+    flags = pareto_optimal_flags(
+        rows, minimize=["size", "ppl_delta"], maximize=[], absolute_tolerance={"ppl_delta": DEFAULT_PPL_ABSOLUTE_TOLERANCE}
+    )
+    by_format = dict(zip((r["format"] for r in rows), flags))
+    # With a real absolute band around ppl_delta, a 0.001 difference is
+    # noise -- Q8_0's real, material size advantage should let it dominate.
+    assert by_format["Q8_0"] is True
+    assert by_format["F16"] is False
+
+
+def test_absolute_tolerance_still_catches_a_real_ppl_delta_difference():
+    rows = [
+        {"format": "F16", "size": 10, "ppl_delta": 0.0},
+        {"format": "Q2_K", "size": 4, "ppl_delta": 2.5},  # clearly material, not noise
+    ]
+    flags = pareto_optimal_flags(
+        rows, minimize=["size", "ppl_delta"], maximize=[], absolute_tolerance={"ppl_delta": DEFAULT_PPL_ABSOLUTE_TOLERANCE}
+    )
+    by_format = dict(zip((r["format"] for r in rows), flags))
+    # Both remain Pareto-optimal: a genuine size-vs-quality tradeoff, not
+    # one dominating the other.
+    assert by_format["F16"] is True
+    assert by_format["Q2_K"] is True
+
+
+def test_rank_table_rejects_empty_objectives():
+    with pytest.raises(ValueError, match="at least one"):
+        rank_table(ROWS, minimize=[], maximize=[])
 
 
 def test_recommend_filters_by_constraints():

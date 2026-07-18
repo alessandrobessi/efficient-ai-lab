@@ -19,7 +19,7 @@ from quantscope.formats import applicable_formats, list_supported_formats
 from quantscope.llama_bin import LlamaBinError, get_system_info
 from quantscope.manifest import write_manifest
 from quantscope.quantize import ImatrixRequiredError, missing_formats, produce_missing
-from quantscope.report import DEFAULT_EPSILON, plot_frontier, rank_table, recommend as recommend_fn
+from quantscope.report import DEFAULT_EPSILON, DEFAULT_PPL_ABSOLUTE_TOLERANCE, plot_frontier, rank_table, recommend as recommend_fn
 
 
 def _parse_gguf_args(pairs: list[str]) -> dict[str, str]:
@@ -46,6 +46,10 @@ def cmd_bench(args: argparse.Namespace) -> int:
         raise SystemExit("--perplexity-baseline-format needs --llama-perplexity-bin and --perplexity-dataset too")
 
     gguf_paths = _parse_gguf_args(args.gguf)
+    # Hashing every GGUF is wasted work if there's no manifest to put the
+    # hashes in -- only do it when --output (and therefore a
+    # <output>_manifest.json) was actually requested.
+    compute_hashes = bool(args.output) and not args.skip_hash
     try:
         results, manifest = sweep(
             args.llama_bench_bin,
@@ -53,29 +57,42 @@ def cmd_bench(args: argparse.Namespace) -> int:
             n_prompt=args.n_prompt,
             n_gen=args.n_gen,
             threads=args.threads,
-            repetitions=args.repetitions,
+            rounds=args.rounds,
+            rng_seed=args.seed,
             llama_perplexity_bin=args.llama_perplexity_bin,
             perplexity_dataset=args.perplexity_dataset,
             perplexity_baseline_format=args.perplexity_baseline_format,
-            compute_hashes=not args.skip_hash,
+            compute_hashes=compute_hashes,
         )
     except ValueError as e:
         raise SystemExit(f"quantscope: {e}") from e
 
     rows = [dataclasses.asdict(r) for r in results]
     minimize = ["file_size_mb"]
+    absolute_tolerance = None
     if args.llama_perplexity_bin:
         if args.perplexity_baseline_format:
             minimize.append("ppl_delta")
+            absolute_tolerance = {"ppl_delta": args.ppl_absolute_tolerance}
         else:
             minimize.append("perplexity")
-    else:
-        for row in rows:
+    for row in rows:
+        # Raw per-round samples and perplexity_error are richer than a flat
+        # CSV row should hold -- they're preserved in the manifest's
+        # per-model entries below instead, not silently dropped.
+        row.pop("prompt_tokens_per_second_samples", None)
+        row.pop("gen_tokens_per_second_samples", None)
+        if not args.llama_perplexity_bin:
             row.pop("perplexity", None)
+            row.pop("perplexity_error", None)
             row.pop("ppl_delta", None)
             row.pop("ppl_ratio", None)
-    df = rank_table(rows, minimize=minimize, maximize=["gen_tokens_per_second"], epsilon=args.pareto_epsilon)
+    df = rank_table(rows, minimize=minimize, maximize=["gen_tokens_per_second"], epsilon=args.pareto_epsilon, absolute_tolerance=absolute_tolerance)
     print(df.to_string(index=False))
+    manifest.pareto_minimize = minimize
+    manifest.pareto_maximize = ["gen_tokens_per_second"]
+    manifest.pareto_epsilon = args.pareto_epsilon
+    manifest.pareto_ppl_absolute_tolerance = args.ppl_absolute_tolerance if "ppl_delta" in minimize else None
     if args.output:
         df.to_csv(args.output, index=False)
         print(f"\nWrote {args.output}")
@@ -121,16 +138,33 @@ def cmd_quantize(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_objectives(minimize: list[str], maximize: list[str]) -> tuple[list[str], list[str]]:
+    """Defaults each of minimize/maximize independently to the most common
+    column for that role (file_size_mb / gen_tokens_per_second) when not
+    given -- matches recommend's original per-field defaulting. rank_table
+    itself now also raises on a genuinely empty pair rather than crashing
+    inside pandas/sort_values, but a clean, usable default beats forcing
+    every `report` invocation to spell out both columns explicitly.
+    """
+    return list(minimize) or ["file_size_mb"], list(maximize) or ["gen_tokens_per_second"]
+
+
+def _absolute_tolerance_for(minimize: list[str], ppl_absolute_tolerance: float) -> dict[str, float] | None:
+    return {"ppl_delta": ppl_absolute_tolerance} if "ppl_delta" in minimize else None
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     import pandas as pd
 
     df_in = pd.read_csv(args.csv)
     rows = df_in.to_dict(orient="records")
-    df = rank_table(rows, minimize=args.minimize, maximize=args.maximize, epsilon=args.pareto_epsilon)
+    minimize, maximize = _resolve_objectives(args.minimize, args.maximize)
+    absolute_tolerance = _absolute_tolerance_for(minimize, args.ppl_absolute_tolerance)
+    df = rank_table(rows, minimize=minimize, maximize=maximize, epsilon=args.pareto_epsilon, absolute_tolerance=absolute_tolerance)
     print(df.to_string(index=False))
     if args.plot:
-        x = args.minimize[0] if args.minimize else args.maximize[0]
-        y = args.maximize[0] if args.maximize else args.minimize[-1]
+        x = minimize[0] if minimize else maximize[0]
+        y = maximize[0] if maximize else minimize[-1]
         quality_col = "ppl_delta" if "ppl_delta" in df.columns else ("perplexity" if "perplexity" in df.columns else None)
         plot_frontier(df, x=x, y=y, output_path=args.plot, quality_col=quality_col)
         print(f"\nWrote {args.plot}")
@@ -142,9 +176,9 @@ def cmd_recommend(args: argparse.Namespace) -> int:
 
     df_in = pd.read_csv(args.csv)
     rows = df_in.to_dict(orient="records")
-    minimize = list(args.minimize) or ["file_size_mb"]
-    maximize = list(args.maximize) or ["gen_tokens_per_second"]
-    df = rank_table(rows, minimize=minimize, maximize=maximize, epsilon=args.pareto_epsilon)
+    minimize, maximize = _resolve_objectives(args.minimize, args.maximize)
+    absolute_tolerance = _absolute_tolerance_for(minimize, args.ppl_absolute_tolerance)
+    df = rank_table(rows, minimize=minimize, maximize=maximize, epsilon=args.pareto_epsilon, absolute_tolerance=absolute_tolerance)
     try:
         result = recommend_fn(
             df,
@@ -199,11 +233,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--n-prompt", type=int, default=512)
     p.add_argument("--n-gen", type=int, default=128)
     p.add_argument("--threads", type=int, default=4)
-    p.add_argument("--repetitions", type=int, default=3)
+    p.add_argument("--rounds", type=int, default=10, help="independent, independently-randomized-order repetitions per format (llama-bench -r 1 each) -- not one sequential -r N pass per format, see ROADMAP.md's v0.2.1 section for why")
+    p.add_argument("--seed", type=int, help="seed the round-order randomization for a reproducible sweep (default: unseeded/random)")
     p.add_argument("--output", help="write ranked results to this CSV path, plus a <path>_manifest.json")
     p.add_argument("--skip-hash", action="store_true", help="skip sha256 hashing GGUF files for the manifest (faster on huge files)")
     p.add_argument("--plot", help="write a Pareto-frontier plot (file size vs. gen tokens/sec) to this path")
     p.add_argument("--pareto-epsilon", type=float, default=DEFAULT_EPSILON, help=f"relative tolerance before a difference counts as material, not noise (default {DEFAULT_EPSILON})")
+    p.add_argument("--ppl-absolute-tolerance", type=float, default=DEFAULT_PPL_ABSOLUTE_TOLERANCE, help=f"absolute (not relative) tolerance for ppl_delta -- a relative tolerance is meaningless around a zero baseline (default {DEFAULT_PPL_ABSOLUTE_TOLERANCE})")
     p.add_argument("--llama-perplexity-bin", help="also measure quality via llama-perplexity (needs --perplexity-dataset too)")
     p.add_argument("--perplexity-dataset", help="text file passed to llama-perplexity -f (needs --llama-perplexity-bin too)")
     p.add_argument("--perplexity-baseline-format", help="one of --gguf's formats to treat as the quality reference (e.g. F16); adds ppl_delta/ppl_ratio columns")
@@ -226,9 +262,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("report", help="rank a bench CSV on a Pareto frontier")
     p.add_argument("--csv", required=True)
-    p.add_argument("--minimize", action="append", default=[], metavar="COLUMN", help="repeatable")
-    p.add_argument("--maximize", action="append", default=[], metavar="COLUMN", help="repeatable")
+    p.add_argument("--minimize", action="append", default=[], metavar="COLUMN", help="repeatable (default: file_size_mb)")
+    p.add_argument("--maximize", action="append", default=[], metavar="COLUMN", help="repeatable (default: gen_tokens_per_second)")
     p.add_argument("--pareto-epsilon", type=float, default=DEFAULT_EPSILON, help=f"relative tolerance before a difference counts as material, not noise (default {DEFAULT_EPSILON})")
+    p.add_argument("--ppl-absolute-tolerance", type=float, default=DEFAULT_PPL_ABSOLUTE_TOLERANCE, help=f"absolute (not relative) tolerance for ppl_delta (default {DEFAULT_PPL_ABSOLUTE_TOLERANCE})")
     p.add_argument("--plot")
     p.set_defaults(func=cmd_report)
 
@@ -237,6 +274,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--minimize", action="append", default=[], metavar="COLUMN", help="repeatable (default: file_size_mb)")
     p.add_argument("--maximize", action="append", default=[], metavar="COLUMN", help="repeatable (default: gen_tokens_per_second)")
     p.add_argument("--pareto-epsilon", type=float, default=DEFAULT_EPSILON)
+    p.add_argument("--ppl-absolute-tolerance", type=float, default=DEFAULT_PPL_ABSOLUTE_TOLERANCE, help=f"absolute (not relative) tolerance for ppl_delta (default {DEFAULT_PPL_ABSOLUTE_TOLERANCE})")
     p.add_argument("--max-size-gb", type=float, help="e.g. 5 for formats no larger than 5GB")
     p.add_argument("--min-tokens-per-second", type=float, help="e.g. 30 for formats at least that fast")
     p.add_argument("--max-ppl-delta", type=float, help="e.g. 0.10 for at most +0.10 perplexity vs. the baseline (requires bench --perplexity-baseline-format)")

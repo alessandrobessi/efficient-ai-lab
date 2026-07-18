@@ -3,7 +3,8 @@
 A real `llama-bench`/`llama-quantize`/`llama-perplexity` run — not stub
 scripts — using quantscope's own CLI end to end: quantize an F16 base into
 7 formats, benchmark all 8 (including the F16 baseline) with CPU forced
-(`-ngl 0`), measure quality loss relative to F16, and rank the result.
+(`-ngl 0` on every invocation, bench *and* perplexity), measure quality
+loss relative to F16, and rank the result.
 
 ![Pareto frontier: file size vs. generation speed, annotated with perplexity delta](frontier.png)
 
@@ -15,9 +16,9 @@ scripts — using quantscope's own CLI end to end: quantize an F16 base into
 | llama.cpp | build `a935fbffe` (version 9960), installed via `brew install llama.cpp` |
 | Base model | [Qwen2.5-0.5B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF), `qwen2.5-0.5b-instruct-fp16.gguf` (630,167,424 params, confirmed via `model_n_params` in every row of `results.csv`) |
 | Formats | F16 (baseline) + Q8_0, Q6_K, Q5_K_M, Q4_K_M, Q4_0, Q3_K_M, Q2_K, all produced from the F16 base by quantscope's own `quantize` command |
-| Perplexity dataset | A real ~150KB prose excerpt from Project Gutenberg's *Pride and Prejudice* (public domain), not synthetic text |
-| quantscope | this branch (v0.2.0, pre-tag), built from source |
-| Bench config | `--threads 8 --repetitions 3 --n-prompt 256 --n-gen 64`, CPU forced (`-ngl 0` — quantscope always does this now; see the manifest's `n_gpu_layers: 0` despite `gpu_info: "Apple M4"` and `backends: "BLAS,MTL"` both being present) |
+| Perplexity dataset | [`wiki-like-sample.txt`](wiki-like-sample.txt) — a real ~154KB public-domain excerpt from Project Gutenberg's *Pride and Prejudice*, committed in this directory (v0.2.0's copy of this file was never actually committed; fixed in v0.2.1) |
+| quantscope | this branch (v0.2.1, pre-tag), built from source |
+| Bench config | `--threads 8 --rounds 10 --seed 42 --n-prompt 256 --n-gen 64`, CPU forced on every llama.cpp invocation (`-ngl 0` — see the manifest's `n_gpu_layers: 0` despite `gpu_info: "Apple M4"` and `backends: "BLAS,MTL"` both being present) |
 
 Reproduce with:
 
@@ -41,81 +42,120 @@ uv run quantscope bench --llama-bench-bin llama-bench \
   --gguf Q4_0=quants/qwen2.5-0.5b-instruct-fp16-Q4_0.gguf \
   --gguf Q3_K_M=quants/qwen2.5-0.5b-instruct-fp16-Q3_K_M.gguf \
   --gguf Q2_K=quants/qwen2.5-0.5b-instruct-fp16-Q2_K.gguf \
-  --threads 8 --repetitions 3 --n-prompt 256 --n-gen 64 \
+  --threads 8 --rounds 10 --seed 42 --n-prompt 256 --n-gen 64 \
   --output results.csv --plot frontier.png
 ```
 
+`--rounds 10` runs 10 independently-shuffled measurement rounds — each
+round visits all 8 formats in a freshly-randomized order (recorded in
+`results_manifest.json`'s `round_orders`) instead of the fixed
+F16→Q8_0→Q6_K→... sequence v0.2.0 used, so thermal/background/caching
+drift over the run gets spread evenly across formats instead of
+correlating with format identity. Perplexity is measured once per format
+afterward, not repeated per round (it's deterministic).
+
 ## What the data shows
 
-| Format | Size (MB) | Gen tok/s | PPL | PPL delta vs. F16 | Pareto-optimal |
+| Format | Size (MB) | Gen tok/s (mean ± stddev, 10 rounds) | PPL | PPL delta vs. F16 | Pareto-optimal |
 |---|---|---|---|---|---|
-| F16 (baseline) | 1207.8 | 75.5 | 20.049 | +0.000 | yes |
-| Q8_0 | 644.4 | **166.7** | 20.057 | +0.008 | yes |
-| Q6_K | 620.2 | 161.5 | 20.070 | +0.021 | yes |
-| Q5_K_M | 498.0 | 162.5 | 20.307 | +0.258 | yes |
-| Q4_K_M | 468.6 | 162.9 | 20.640 | +0.591 | yes |
-| Q3_K_M | 412.0 | 122.1 | 21.540 | +1.492 | yes |
-| Q4_0 | 408.9 | 128.2 | 22.270 | +2.221 | yes |
-| Q2_K | **395.9** | 114.7 | 22.529 | +2.480 | yes |
+| F16 (baseline) | 1207.8 | 29.4 ± 21.7 | 20.323 | +0.000 | yes |
+| Q8_0 | 644.4 | 59.9 ± 45.7 | 20.375 | +0.052 | no |
+| Q6_K | 620.2 | 60.6 ± 47.2 | 20.379 | +0.056 | yes |
+| Q5_K_M | 498.0 | 65.0 ± 48.8 | 20.591 | +0.268 | yes |
+| Q4_K_M | 468.6 | 67.7 ± 49.3 | 20.920 | +0.597 | yes |
+| Q3_K_M | 412.0 | 78.5 ± 52.3 | 21.829 | +1.506 | yes |
+| Q2_K | 395.9 | 78.0 ± 56.8 | 22.843 | +2.520 | yes |
+| Q4_0 | 408.9 | 92.9 ± 61.9 | 22.587 | +2.264 | yes |
 
-**The headline finding, and it's exactly this program's own thesis: Q8_0 is
-the *fastest* format tested — faster than Q4_K_M, Q5_K_M, and Q6_K, despite
-being nominally "less compressed" than all three.** A naive bits-per-weight
-model predicts Q4_K_M (4.8 bpw) should beat Q8_0 (8.5 bpw) on speed; measured
-on this exact hardware, it's the reverse: Q8_0 hits 166.7 tok/s against
-Q4_K_M's 162.9. This is quantscope's `estimate-size` vs. `bench` distinction
-made concrete, not hypothetical — this is a real place the `estimate-size`
-heuristic would have given the wrong answer, and only measuring caught it.
+**The honest headline: this run cannot support a confident "format X is
+fastest" claim, and that's itself the real finding.** Q4_0 posted the
+highest mean generation throughput, roughly tracking file size this time
+(smaller formats measured faster, close to monotonically) — the opposite
+pattern from v0.2.0's run, which found Q8_0 fastest despite being larger
+than four K-quants. Neither result should be trusted at face value: look
+at the stddevs. Every format's round-to-round standard deviation is 60-90%
+of its own mean, an order of magnitude noisier than v0.2.0's 0.7-8.1 tok/s
+stddevs. The difference between adjacent rows in the table above is
+routinely smaller than either row's own stddev — well within
+`--pareto-epsilon`'s blind spot, since the epsilon-dominance check compares
+means against a flat 2% band, not each point's own confidence interval
+(a documented limitation — see [ROADMAP.md](../../ROADMAP.md#explicitly-deferred-stretch-goal-not-v10-scope)).
 
-All 8 formats land on the Pareto frontier simultaneously — every format that
-gets smaller also gets either slower or measurably worse in perplexity, so
-none is strictly dominated by another. This is exactly the "which one should
-I actually pick?" gap `recommend` exists to close — it narrows the field to
-what actually satisfies your constraints (sorted fastest-first, so the top
-row is the pick):
+**Why this run is noisier than v0.2.0's, and why that's the correct
+tradeoff, not a regression.** v0.2.0 called `llama-bench -r 3` *once per
+format* — three repetitions back-to-back inside one warm process, model
+already loaded and page-cached from the first repetition. That produces
+tight numbers, but every format's three repetitions ran in a single
+contiguous block, so any drift over the run (thermal, background load,
+OS scheduling) lands on whichever format happened to run early or late —
+exactly the confound the second external review flagged. v0.2.1 instead
+launches a fresh `llama-bench -r 1` process per (round, format) pair, in a
+newly-shuffled order each round: model load, page-cache warmup, and thread
+pool startup happen fresh every single measurement. That's real,
+structural round-to-round noise on top of whatever drift exists — for a
+0.5B model with a short `-n 64` generation phase, the fixed per-launch
+overhead is a large fraction of the total measured time, so it shows up as
+large variance. The tradeoff is deliberate: v0.2.1 trades tight-looking
+numbers for order-independence, and the honest result is that this
+model/hardware/config combination needs more than 10 single-shot rounds
+(or repetitions *within* each round) to separate formats with confidence —
+not that quantization format doesn't matter.
+
+**What *did* stay stable across both runs: perplexity.**
+`ppl_delta` is nearly identical to v0.2.0's numbers (e.g. Q4_K_M: 0.597 now
+vs. 0.591 then; Q2_K: 2.520 now vs. 2.480 then) — expected, since
+perplexity is a deterministic single pass over the same dataset, unaffected
+by process-launch or scheduling noise. `perplexity_error` (llama-perplexity's
+own `+/- ...` uncertainty) is tight and consistent across formats
+(0.41-0.47), new in v0.2.1 — v0.2.0 discarded this number entirely.
 
 ```
 $ quantscope recommend --csv results.csv --max-ppl-delta 0.3
 format  file_size_mb  gen_tokens_per_second  ppl_delta
-  Q8_0        644.4                  166.7     0.008   <- pick
-Q5_K_M        498.0                  162.5     0.258
-  Q6_K        620.2                  161.5     0.021
-   F16       1207.8                   75.5     0.000
+Q5_K_M        498.0                   65.0     0.268
+  Q6_K        620.2                   60.6     0.056
+  Q8_0        644.4                   59.9     0.052
+   F16       1207.8                   29.4     0.000
 ```
 
 ```
 $ quantscope recommend --csv results.csv --max-size-gb 0.5
 format  file_size_mb  gen_tokens_per_second  ppl_delta
-Q4_K_M        468.6                  162.9     0.591   <- pick
-Q5_K_M        498.0                  162.5     0.258
-  Q4_0        408.9                  128.2     2.221
-Q3_K_M        412.0                  122.1     1.491
-  Q2_K        395.9                  114.7     2.480
+  Q4_0        408.9                   92.9     2.264   <- highest mean, but see noise caveat above
+  Q2_K        395.9                   78.0     2.520
+Q3_K_M        412.0                   78.5     1.506
+Q4_K_M        468.6                   67.7     0.597
+Q5_K_M        498.0                   65.0     0.268
 ```
 
-Down from "here are 8 Pareto-optimal points, good luck" to "here are your
-candidates given what you actually care about, ranked" — a real narrowing
-even when it isn't down to exactly one row.
+`recommend` still does its job — narrowing 8 Pareto-ish candidates to the
+ones meeting a stated constraint — but at this noise level, treat its
+sort order as "roughly this tier," not a confident ranking within a tier.
 
 ## Known limitations of this specific run
 
-- **Repetitions (3) and dataset size (~150KB) are smaller than a rigorous
-  benchmark would use.** `gen_tokens_per_second_stddev` in `results.csv` is
-  reasonably tight (0.7 to 8.1 tok/s across all 8 formats), but
-  `prompt_tokens_per_second_stddev` is not — Q4_0's is 147.1 against its own
-  mean of 923.8 (~16%), notably higher than the other formats' 3-35 range.
-  More repetitions would narrow this. Treat this run as demonstrating real,
-  qualitatively correct behavior (the Q8_0 finding, the recommend
-  workflow), not as a low-variance performance claim for every number in
-  the table, particularly prompt-processing speed.
+- **Round-to-round variance is large (60-90% of the mean) and dominates
+  the differences between most formats.** See "Why this run is noisier
+  than v0.2.0's" above. A future refinement worth trying: `llama-bench -r
+  N` *within* each round (not just `-r 1`), trading some of the
+  order-randomization's granularity for tighter per-round measurements —
+  not implemented in this pass, noted in
+  [ROADMAP.md](../../ROADMAP.md#explicitly-deferred-stretch-goal-not-v10-scope)
+  as a candidate for a future version.
+- **This machine was an actively-used development laptop, not a dedicated
+  benchmark rig.** Background load varied over the ~2 hour run (other
+  applications competing for CPU); the randomized-round design spreads
+  that load's effect evenly across formats rather than letting it
+  correlate with format identity, but it doesn't eliminate the load's
+  contribution to variance.
 - **One thread count (8), one hardware target, one model size (0.5B).**
-  Whether Q8_0 beats the K-quants generalizes to other models/thread
+  Whether any format's speed edge generalizes to other models/thread
   counts/CPUs is an open question this single run doesn't answer.
 - **Perplexity measured on a modest, non-standard text sample** (a
   Pride-and-Prejudice excerpt, not the standard wikitext-2 test set used in
   most published llama.cpp perplexity numbers). Valid for *this* run's own
-  same-model, same-tokenizer relative comparison (exactly what ppl_delta is
-  for), not for comparing these absolute PPL numbers against numbers
+  same-model, same-tokenizer relative comparison (exactly what `ppl_delta`
+  is for), not for comparing these absolute PPL numbers against numbers
   published elsewhere.
 - **No IQ*-format / imatrix-calibrated run included** — `quantize --imatrix`
   is implemented and tested (see `../../ROADMAP.md`) but wasn't exercised

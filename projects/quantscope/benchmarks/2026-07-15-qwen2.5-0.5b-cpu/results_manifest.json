@@ -1,6 +1,6 @@
 {
-  "quantscope_version": "0.1.0",
-  "timestamp": "2026-07-15T06:26:26.345238+00:00",
+  "quantscope_version": "0.2.1",
+  "timestamp": "2026-07-18T05:39:28.131639+00:00",
   "os": "macOS-15.7.3-arm64-arm-64bit-Mach-O",
   "llama_cpp_build_commit": "a935fbffe",
   "cpu_info": "Accelerate, Apple M4",
@@ -10,59 +10,177 @@
   "n_batch": 2048,
   "n_ubatch": 512,
   "n_gpu_layers": 0,
+  "n_prompt": 256,
+  "n_gen": 64,
+  "rounds": 10,
+  "round_orders": [
+    [
+      "Q5_K_M",
+      "Q4_K_M",
+      "Q3_K_M",
+      "Q2_K",
+      "Q6_K",
+      "Q4_0",
+      "F16",
+      "Q8_0"
+    ],
+    [
+      "Q5_K_M",
+      "Q2_K",
+      "Q6_K",
+      "F16",
+      "Q4_K_M",
+      "Q3_K_M",
+      "Q4_0",
+      "Q8_0"
+    ],
+    [
+      "Q5_K_M",
+      "Q4_0",
+      "Q6_K",
+      "Q4_K_M",
+      "Q8_0",
+      "Q3_K_M",
+      "Q2_K",
+      "F16"
+    ],
+    [
+      "Q6_K",
+      "Q8_0",
+      "F16",
+      "Q2_K",
+      "Q4_K_M",
+      "Q3_K_M",
+      "Q4_0",
+      "Q5_K_M"
+    ],
+    [
+      "Q4_0",
+      "Q6_K",
+      "Q2_K",
+      "Q5_K_M",
+      "Q8_0",
+      "F16",
+      "Q3_K_M",
+      "Q4_K_M"
+    ],
+    [
+      "Q4_0",
+      "Q5_K_M",
+      "Q3_K_M",
+      "Q4_K_M",
+      "F16",
+      "Q2_K",
+      "Q8_0",
+      "Q6_K"
+    ],
+    [
+      "Q5_K_M",
+      "Q8_0",
+      "F16",
+      "Q2_K",
+      "Q4_K_M",
+      "Q6_K",
+      "Q3_K_M",
+      "Q4_0"
+    ],
+    [
+      "Q4_0",
+      "Q2_K",
+      "Q3_K_M",
+      "Q6_K",
+      "Q4_K_M",
+      "F16",
+      "Q5_K_M",
+      "Q8_0"
+    ],
+    [
+      "Q6_K",
+      "Q4_K_M",
+      "Q2_K",
+      "Q8_0",
+      "Q3_K_M",
+      "F16",
+      "Q4_0",
+      "Q5_K_M"
+    ],
+    [
+      "Q4_0",
+      "Q4_K_M",
+      "Q8_0",
+      "Q6_K",
+      "Q2_K",
+      "F16",
+      "Q3_K_M",
+      "Q5_K_M"
+    ]
+  ],
+  "perplexity_dataset_sha256": "283521f770731c0b587ede5068727a7995b4199dac45e251c86d1b42dc726f88",
+  "perplexity_baseline_format": "F16",
+  "perplexity_threads": 8,
+  "perplexity_n_gpu_layers": 0,
+  "pareto_minimize": [
+    "file_size_mb",
+    "ppl_delta"
+  ],
+  "pareto_maximize": [
+    "gen_tokens_per_second"
+  ],
+  "pareto_epsilon": 0.02,
+  "pareto_ppl_absolute_tolerance": 0.05,
   "models": [
     {
       "format": "F16",
-      "path": "/Users/alessandro/.claude/jobs/ed49dd91/tmp/qs-bench/qwen2.5-0.5b-instruct-fp16.gguf",
+      "filename": "qwen2.5-0.5b-instruct-fp16.gguf",
       "sha256": "8e0ae26000627ed62de0e78e41860af70094558b9d2913385c842a6aa06cf3fc",
       "model_size_bytes": 1260477952,
       "model_n_params": 630167424
     },
     {
       "format": "Q8_0",
-      "path": "/Users/alessandro/.claude/jobs/ed49dd91/tmp/qs-bench/quants/qwen2.5-0.5b-instruct-fp16-Q8_0.gguf",
+      "filename": "qwen2.5-0.5b-instruct-fp16-Q8_0.gguf",
       "sha256": "51b344f6dbf12a9e0d7557453f1b115e72277727231b3198dc2f3e5331fb7616",
       "model_size_bytes": 669763072,
       "model_n_params": 630167424
     },
     {
       "format": "Q6_K",
-      "path": "/Users/alessandro/.claude/jobs/ed49dd91/tmp/qs-bench/quants/qwen2.5-0.5b-instruct-fp16-Q6_K.gguf",
+      "filename": "qwen2.5-0.5b-instruct-fp16-Q6_K.gguf",
       "sha256": "29132e3386fb02e858dc4062f9a868e4eb2c3177301b702126c42debd3dfa751",
       "model_size_bytes": 644431360,
       "model_n_params": 630167424
     },
     {
       "format": "Q5_K_M",
-      "path": "/Users/alessandro/.claude/jobs/ed49dd91/tmp/qs-bench/quants/qwen2.5-0.5b-instruct-fp16-Q5_K_M.gguf",
+      "filename": "qwen2.5-0.5b-instruct-fp16-Q5_K_M.gguf",
       "sha256": "131dc38a305234ed3d1db89ccf8a65a5cc2a10f97d792bfaccf45fd06051448f",
       "model_size_bytes": 516238848,
       "model_n_params": 630167424
     },
     {
       "format": "Q4_K_M",
-      "path": "/Users/alessandro/.claude/jobs/ed49dd91/tmp/qs-bench/quants/qwen2.5-0.5b-instruct-fp16-Q4_K_M.gguf",
+      "filename": "qwen2.5-0.5b-instruct-fp16-Q4_K_M.gguf",
       "sha256": "eeac84f264d9a9a3836dbc1baaa1436d3c82d8bdb8b8dc5208f68745ddc532e4",
       "model_size_bytes": 485452288,
       "model_n_params": 630167424
     },
     {
       "format": "Q4_0",
-      "path": "/Users/alessandro/.claude/jobs/ed49dd91/tmp/qs-bench/quants/qwen2.5-0.5b-instruct-fp16-Q4_0.gguf",
+      "filename": "qwen2.5-0.5b-instruct-fp16-Q4_0.gguf",
       "sha256": "105cea7000558d2321ed5ff4ac67645c6cf43077604fa2180504010c59add5b8",
       "model_size_bytes": 422782464,
       "model_n_params": 630167424
     },
     {
       "format": "Q3_K_M",
-      "path": "/Users/alessandro/.claude/jobs/ed49dd91/tmp/qs-bench/quants/qwen2.5-0.5b-instruct-fp16-Q3_K_M.gguf",
+      "filename": "qwen2.5-0.5b-instruct-fp16-Q3_K_M.gguf",
       "sha256": "d3547932b8ee192035e7db1581a8675984bd24fb013bf29e38221ba6b3c73694",
       "model_size_bytes": 426094080,
       "model_n_params": 630167424
     },
     {
       "format": "Q2_K",
-      "path": "/Users/alessandro/.claude/jobs/ed49dd91/tmp/qs-bench/quants/qwen2.5-0.5b-instruct-fp16-Q2_K.gguf",
+      "filename": "qwen2.5-0.5b-instruct-fp16-Q2_K.gguf",
       "sha256": "ab2836923d54330e3e3b96ad4f491ea801fb8d60ced4b3aa5f688329409f973b",
       "model_size_bytes": 409234944,
       "model_n_params": 630167424

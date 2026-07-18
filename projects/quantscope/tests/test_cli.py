@@ -111,6 +111,7 @@ def test_cli_bench_end_to_end(tmp_path, capsys):
             "bench",
             "--llama-bench-bin", bench_stub,
             "--gguf", f"Q4_K_M={gguf_path}",
+            "--rounds", "2",
             "--output", str(out_csv),
         ]
     )
@@ -120,14 +121,25 @@ def test_cli_bench_end_to_end(tmp_path, capsys):
     assert out_csv.exists()
     assert "pareto_optimal" in out_csv.read_text()
     assert "perplexity" not in out_csv.read_text()  # no quality eval given
+    # Raw per-round sample lists are manifest/API-only, not CSV columns.
+    assert "samples" not in out_csv.read_text()
 
     manifest_path = tmp_path / "results_manifest.json"
     assert manifest_path.exists()
     manifest = json.loads(manifest_path.read_text())
     assert manifest["cpu_info"] == "Apple M4"
     assert manifest["n_gpu_layers"] == 0
+    assert manifest["n_prompt"] == 512
+    assert manifest["n_gen"] == 128
+    assert manifest["rounds"] == 2
+    assert len(manifest["round_orders"]) == 2
+    assert manifest["round_orders"][0] == ["Q4_K_M"]
+    assert manifest["pareto_minimize"] == ["file_size_mb"]
+    assert manifest["pareto_maximize"] == ["gen_tokens_per_second"]
     assert len(manifest["models"]) == 1
-    assert manifest["models"][0]["sha256"]  # hashing on by default
+    assert manifest["models"][0]["sha256"]  # hashing on by default when --output is given
+    assert manifest["models"][0]["filename"] == "model-q4.gguf"
+    assert "path" not in manifest["models"][0]
 
 
 def test_cli_bench_skip_hash(tmp_path):
@@ -136,9 +148,25 @@ def test_cli_bench_skip_hash(tmp_path):
     gguf_path.write_bytes(b"0" * 1024)
     out_csv = tmp_path / "results.csv"
 
-    main(["bench", "--llama-bench-bin", bench_stub, "--gguf", f"Q4_K_M={gguf_path}", "--output", str(out_csv), "--skip-hash"])
+    main(["bench", "--llama-bench-bin", bench_stub, "--gguf", f"Q4_K_M={gguf_path}", "--rounds", "1", "--output", str(out_csv), "--skip-hash"])
     manifest = json.loads((tmp_path / "results_manifest.json").read_text())
     assert manifest["models"][0]["sha256"] == ""
+
+
+def test_cli_bench_skips_hashing_when_no_output_requested(tmp_path):
+    # A quantscope v0.2.0 bug: every GGUF got sha256-hashed even when
+    # --output wasn't given, so there was nowhere for the hash to go --
+    # wasted work on potentially multi-gigabyte files for no reason.
+    from unittest.mock import patch
+
+    bench_stub = _write_stub(tmp_path / "llama-bench", LLAMA_BENCH_STUB)
+    gguf_path = tmp_path / "model-q4.gguf"
+    gguf_path.write_bytes(b"0" * 1024)
+
+    with patch("quantscope.bench.sha256_file") as mock_hash:
+        rc = main(["bench", "--llama-bench-bin", bench_stub, "--gguf", f"Q4_K_M={gguf_path}", "--rounds", "1"])
+    assert rc == 0
+    mock_hash.assert_not_called()
 
 
 def test_cli_bench_rejects_mismatched_models(tmp_path):
@@ -183,6 +211,7 @@ exit 1
                 "--llama-bench-bin", stub,
                 "--gguf", f"Q4_K_M={q4_path}",
                 "--gguf", f"Q3_K_M={other_path}",
+                "--rounds", "1",
             ]
         )
         assert False, "expected SystemExit"
@@ -207,6 +236,7 @@ def test_cli_bench_with_quality_eval(tmp_path, capsys):
             "--llama-perplexity-bin", perplexity_stub,
             "--perplexity-dataset", str(dataset),
             "--output", str(out_csv),
+            "--rounds", "1",
             "--skip-hash",
         ]
     )
@@ -214,6 +244,7 @@ def test_cli_bench_with_quality_eval(tmp_path, capsys):
     csv_text = out_csv.read_text()
     assert "perplexity" in csv_text
     assert "6.1234" in csv_text
+    assert "perplexity_error" in csv_text
 
 
 def test_cli_bench_quality_eval_requires_both_flags(tmp_path):

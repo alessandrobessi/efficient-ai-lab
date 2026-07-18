@@ -96,10 +96,23 @@ Final estimate: PPL = 5.9070 +/- 0.03166
 
 def test_run_llama_perplexity_parses_final_estimate():
     with patch("subprocess.run", return_value=_completed(stdout=PERPLEXITY_OUTPUT)) as mock_run:
-        ppl = run_llama_perplexity("llama-perplexity", "model.gguf", "wiki.test.raw")
-    assert ppl == 5.9070
+        result = run_llama_perplexity("llama-perplexity", "model.gguf", "wiki.test.raw")
+    assert result.value == 5.9070
+    assert result.error == 0.03166
     assert mock_run.call_args.args[0][:2] == ["llama-perplexity", "-m"]
     assert "-f" in mock_run.call_args.args[0]
+
+
+def test_run_llama_perplexity_always_forces_ngl_zero():
+    # A quantscope v0.2.0 bug: run_llama_bench forced -ngl 0 but
+    # run_llama_perplexity didn't, so a Metal/CUDA-enabled build could
+    # silently evaluate perplexity with GPU offload while quantscope's own
+    # docs claimed CPU was always forced.
+    with patch("subprocess.run", return_value=_completed(stdout=PERPLEXITY_OUTPUT)) as mock_run:
+        run_llama_perplexity("llama-perplexity", "model.gguf", "wiki.test.raw")
+    cmd = mock_run.call_args.args[0]
+    assert "-ngl" in cmd
+    assert cmd[cmd.index("-ngl") + 1] == "0"
 
 
 def test_run_llama_perplexity_raises_on_nonzero_exit():

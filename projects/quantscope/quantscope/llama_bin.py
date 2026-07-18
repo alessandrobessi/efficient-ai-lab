@@ -16,7 +16,11 @@ from dataclasses import dataclass
 
 # Matches llama-perplexity's final summary line, e.g.:
 #   Final estimate: PPL = 5.9070 +/- 0.03166
-_PPL_RE = re.compile(r"Final estimate:\s*PPL\s*=\s*([\d.]+)")
+# Captures both the point estimate and its own reported uncertainty -- a
+# quantscope v0.2.0 bug discarded the "+/- 0.03166" half, making it
+# impossible to tell whether a small perplexity delta between two formats
+# was a real difference or within llama-perplexity's own measurement noise.
+_PPL_RE = re.compile(r"Final estimate:\s*PPL\s*=\s*([\d.]+)\s*\+/-\s*([\d.]+)")
 
 
 class LlamaBinError(RuntimeError):
@@ -159,25 +163,48 @@ def get_quantize_help(llama_quantize_bin: str) -> str:
     return proc.stdout + "\n" + proc.stderr
 
 
+@dataclass
+class PerplexityResult:
+    """llama-perplexity's `Final estimate: PPL = value +/- error` line, kept
+    as two numbers rather than collapsing to just `value` -- a quantscope
+    v0.2.0 bug did exactly that, making it impossible to tell whether a
+    small ppl_delta between two formats (e.g. +0.0083) was a real quality
+    difference or within llama-perplexity's own reported measurement noise.
+    """
+
+    value: float
+    error: float
+
+
 def run_llama_perplexity(
     llama_perplexity_bin: str,
     gguf_path: str,
     dataset_path: str,
     threads: int = 4,
-) -> float:
+) -> PerplexityResult:
     """Runs llama-perplexity over dataset_path and returns the final PPL
-    estimate — the raw quantization-loss-proxy measurement `bench`'s
-    perplexity options add alongside speed/size. Callers are responsible
-    for turning this into a delta/ratio against a reference format (see
-    bench.py) — llama.cpp's own docs are explicit that a bare perplexity
-    number is only meaningful relative to a same-model, same-tokenizer
-    reference, not as an absolute "quality" score.
+    estimate plus its own reported uncertainty — the raw
+    quantization-loss-proxy measurement `bench`'s perplexity options add
+    alongside speed/size. Callers are responsible for turning `.value` into
+    a delta/ratio against a reference format (see bench.py) — llama.cpp's
+    own docs are explicit that a bare perplexity number is only meaningful
+    relative to a same-model, same-tokenizer reference, not as an absolute
+    "quality" score.
+
+    Always passes `-ngl 0`, for the same reason run_llama_bench does:
+    without it, a Metal/CUDA/Vulkan-enabled build would silently evaluate
+    perplexity with GPU offload. This doesn't change the perplexity *value*
+    (a forward pass produces the same loss regardless of which device ran
+    it, modulo tiny floating-point reduction-order differences) but keeps
+    quantscope's "CPU is forced, always" claim actually true of every
+    llama.cpp invocation it makes, not just the speed benchmark.
     """
     cmd = [
         llama_perplexity_bin,
         "-m", gguf_path,
         "-f", dataset_path,
         "-t", str(threads),
+        "-ngl", "0",
     ]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
@@ -186,7 +213,7 @@ def run_llama_perplexity(
     match = _PPL_RE.search(combined)
     if not match:
         raise LlamaBinError(f"could not find a 'Final estimate: PPL = ...' line in llama-perplexity output:\n{combined}")
-    return float(match.group(1))
+    return PerplexityResult(value=float(match.group(1)), error=float(match.group(2)))
 
 
 def get_system_info(llama_bench_bin: str) -> str:

@@ -6,7 +6,7 @@ A CLI that answers a question this program's own research raised but never
 fully automated: **for this model, on this CPU, which GGUF quantization
 format is actually fastest — and what do you give up to get there?**
 
-**Status: [`quantscope/v0.2.0`](https://github.com/alessandrobessi/efficient-ai-lab/tree/quantscope/v0.2.0) tagged.**
+**Status: [`quantscope/v0.2.1`](https://github.com/alessandrobessi/efficient-ai-lab/tree/quantscope/v0.2.1) tagged.**
 Installable, tested end-to-end, CPU inference always forced (`-ngl 0`,
 never GPU-offloaded — see [Why this matters](#why-this-matters)). No
 package published to PyPI or as a release artifact yet — install from
@@ -27,6 +27,25 @@ and [Known limitations](#known-limitations) for what's still open.
 - [License](#license)
 
 ## Why this matters
+
+Imagine packing a moving truck whose cargo area is built from fixed-size
+slots. Boxes that are exactly slot-sized load in seconds — the movers slide
+a dozen in at once. Squeeze your stuff into smaller, oddly-shaped boxes to
+save space, and now they don't match the slots: the movers have to muscle
+each one in by hand, one at a time. The odd little boxes take up *less
+room*, but they can take *longer to load* than the bigger boxes that
+happened to fit the truck's slots neatly.
+
+That's exactly what's going on inside your CPU when it runs a shrunk-down
+("quantized") AI model. A CPU crunches numbers in fixed-size batches too
+(its SIMD "lanes" — think of them as the truck's slots). Some quantization
+formats happen to arrange their numbers in a way that lines up neatly with
+those lanes, so the CPU runs them at full speed. Others are technically
+smaller, but arranged in a shape the CPU can't load a full lane of at once
+— so despite being "more compressed," they run *slower*. And you can't tell
+which is which just by reading the label ("4-bit" vs. "8-bit") any more than
+you can tell whether a box will fit the truck's slots just by reading
+"small" on the side. You have to actually load it in and time it.
 
 Say you have a language model and want to run it locally. GGUF quantization
 lets you shrink it — trading precision for a smaller file and (usually)
@@ -63,13 +82,14 @@ uv run quantscope bench --llama-bench-bin llama-bench \
 
 ```
 format  file_size_mb  gen_tokens_per_second  pareto_optimal
-  Q8_0    644.408051             166.662051            True
-Q4_K_M    468.635590             162.907600            True
+  Q8_0         644.4                  145.0            True
+Q4_K_M         468.6                  138.0            True
 ```
 
-(Both Pareto-optimal here — Q8_0 is bigger but faster, Q4_K_M is smaller but
-slower, a genuine tradeoff at just two formats. The real 8-format sweep
-below is where things get more interesting.)
+(Illustrative shape of the output, not literal numbers — your own run will
+differ, and so will quantscope's, run to run: see the real 8-format sweep
+below, including an honest discussion of just how much run-to-run
+variance a small model on CPU actually has.)
 
 Every `bench` run always benchmarks CPU-only — `-ngl 0` is passed to
 `llama-bench` unconditionally, regardless of whether your build has
@@ -85,11 +105,18 @@ CPU.
 
 ![Pareto frontier: file size vs. generation speed, annotated with perplexity delta](benchmarks/2026-07-15-qwen2.5-0.5b-cpu/frontier.png)
 
-**Q8_0 is the fastest format tested — faster than Q4_K_M, Q5_K_M, and
-Q6_K, despite being nominally less compressed than all three** (166.7
-tok/s vs. Q4_K_M's 162.9, on this exact hardware). This is the "measure,
-don't guess" thesis made concrete, not hypothetical. Full setup, raw CSV,
-manifest, and honest limitations:
+**The honest finding from the current (v0.2.1) run: round-to-round
+variance on a small model is large enough that no single format's speed
+claim is well-supported by the data** — a genuinely useful result in its
+own right, since it's precisely the kind of overconfident "format X is
+fastest" claim that measuring (instead of guessing) is supposed to guard
+against. An earlier run (v0.2.0, sequential rather than randomized
+benchmark order) reported Q8_0 as fastest; rerunning under the new
+randomized multi-round architecture reversed that finding and, more
+importantly, showed the reversal itself is inside the noise band. This is
+the "measure, don't guess" thesis applied to quantscope's own numbers, not
+just to quantization format choice. Full setup, raw CSV, manifest, and
+honest limitations:
 [`benchmarks/2026-07-15-qwen2.5-0.5b-cpu/`](benchmarks/2026-07-15-qwen2.5-0.5b-cpu/).
 
 ## Installation
@@ -112,7 +139,7 @@ Or install it as a standalone tool from a local build:
 
 ```bash
 uv build
-uv tool install dist/quantscope-0.2.0-py3-none-any.whl
+uv tool install dist/quantscope-0.2.1-py3-none-any.whl
 quantscope -h
 ```
 
@@ -206,11 +233,13 @@ summarized here.
 | `--n-prompt` | `512` | Prompt-processing test size (tokens) |
 | `--n-gen` | `128` | Token-generation test size (tokens) |
 | `--threads` | `4` | Thread count passed to llama-bench |
-| `--repetitions` | `3` | llama-bench's own internal repetition count (`-r`) |
+| `--rounds` | `10` | Independently-shuffled measurement rounds; one `llama-bench -r 1` call per (round, format) — see [Why this matters](#why-this-matters) and [v0.2.1](ROADMAP.md#v021-fixes-from-a-second-external-review) |
+| `--seed` | *(none)* | Seed for the round-order shuffle, for reproducible runs; omit for true randomness |
 | `--output` | *(none)* | Write the ranked table to this CSV path, plus `<path>_manifest.json` |
 | `--skip-hash` | off | Skip sha256 hashing GGUF files for the manifest (faster on huge files) |
 | `--plot` | *(none)* | Write a Pareto-frontier plot to this path |
 | `--pareto-epsilon` | `0.02` | Relative tolerance before a difference counts as material, not noise |
+| `--ppl-absolute-tolerance` | `0.05` | Absolute (not relative) tolerance for `ppl_delta`, so a near-zero baseline still gets real noise protection |
 | `--llama-perplexity-bin` | *(none)* | Also measure quality via `llama-perplexity`; requires `--perplexity-dataset` too |
 | `--perplexity-dataset` | *(none)* | Text file passed to `llama-perplexity -f` |
 | `--perplexity-baseline-format` | *(none)* | One of `--gguf`'s formats to treat as the quality reference; adds `ppl_delta`/`ppl_ratio` |
@@ -242,6 +271,7 @@ names. Always prints a note that this is not a speed estimate; see
 | `--minimize` | *(none, repeatable)* | Column(s) where smaller is better |
 | `--maximize` | *(none, repeatable)* | Column(s) where larger is better |
 | `--pareto-epsilon` | `0.02` | Relative tolerance before a difference counts as material |
+| `--ppl-absolute-tolerance` | `0.05` | Absolute tolerance for `ppl_delta`, so a near-zero baseline still gets real noise protection |
 | `--plot` | *(none)* | Write a Pareto-frontier plot to this path |
 
 ### `recommend` — filter a bench CSV to formats meeting explicit constraints
@@ -250,6 +280,7 @@ names. Always prints a note that this is not a speed estimate; see
 |---|---|---|
 | `--csv` | *(required)* | Path to a CSV with one row per format |
 | `--minimize` / `--maximize` | `file_size_mb` / `gen_tokens_per_second` | Objectives for the underlying Pareto ranking |
+| `--ppl-absolute-tolerance` | `0.05` | Absolute tolerance for `ppl_delta`, so a near-zero baseline still gets real noise protection |
 | `--max-size-gb` | *(none)* | Only formats no larger than this |
 | `--min-tokens-per-second` | *(none)* | Only formats at least this fast |
 | `--max-ppl-delta` | *(none)* | Only formats within this much perplexity of the baseline (needs `bench --perplexity-baseline-format`) |
@@ -275,15 +306,23 @@ sorted first, with a `pareto_optimal` boolean column.
 **CSV** (`bench --output` / read by `report`/`recommend --csv`) — one row
 per format: `format, gguf_path, file_size_mb, model_size_bytes,
 model_n_params, model_type, prompt_tokens_per_second(_stddev),
-gen_tokens_per_second(_stddev), perplexity, ppl_delta, ppl_ratio,
-pareto_optimal` (columns present depend on what was benchmarked).
+gen_tokens_per_second(_stddev), perplexity, perplexity_error, ppl_delta,
+ppl_ratio, pareto_optimal` (columns present depend on what was
+benchmarked). `prompt_tokens_per_second`/`gen_tokens_per_second` and their
+stddevs are aggregated *across* `--rounds` independently-shuffled rounds,
+not within one round's repetitions — see [Why this
+matters](#why-this-matters).
 
 **Manifest** (`bench --output`, written as `<path>_manifest.json`) — the
 shared environment every format in the sweep ran under (llama.cpp build
-commit, CPU/GPU info, backends, thread/batch config, `n_gpu_layers`) plus a
-sha256 per GGUF file — the reproducibility half of a bench result,
-deliberately kept separate from the CSV since it's identical across every
-row in one sweep rather than repeated per-row.
+commit, CPU/GPU info, backends, thread/batch config, `n_gpu_layers`), plus
+`n_prompt`/`n_gen`/`rounds` and the actual per-round shuffled visiting
+order (`round_orders`), the perplexity dataset's sha256 and baseline format
+(when quality eval was used), the Pareto objectives/epsilon/absolute
+tolerance the CSV was ranked with, and a sha256 per GGUF file (stored by
+basename, never an absolute path) — the reproducibility half of a bench
+result, deliberately kept separate from the CSV since it's identical across
+every row in one sweep rather than repeated per-row.
 
 **Plot** (`--plot`, `bench`/`report`) — a PNG scatter plot, Pareto-optimal
 points in a different color, each labeled with its format name and (when
@@ -305,7 +344,7 @@ projects/quantscope/
 │   ├── quantize.py        produces missing formats via llama-quantize; enforces imatrix for IQ*
 │   └── report.py          Pareto-frontier ranking (epsilon-tolerant) + recommend + plotting
 ├── benchmarks/            real (not stub) sweep runs, one dir per run
-└── tests/                 57 tests: mocked subprocess, fixture parsing, Pareto logic, CLI end-to-end
+└── tests/                 70 tests: mocked subprocess, fixture parsing, Pareto logic, CLI end-to-end
 ```
 
 See [`ROADMAP.md`](ROADMAP.md) for the design rationale behind each module
@@ -322,10 +361,16 @@ and what was reused from this program's own `experiments/` scripts.
 - **`recommend`'s ranking is constraint filtering, not a weighted
   optimizer** — it narrows candidates and sorts by your primary objective;
   it doesn't compute a single blended "best overall" score.
-- **Epsilon-dominance uses one flat tolerance (2% default), not per-point
-  confidence intervals** derived from each format's own stddev — a
-  reasonable v1 given llama-bench's own averages already carry real noise,
-  but not as statistically rigorous as CI-aware dominance would be.
+- **Epsilon-dominance uses one flat relative tolerance (2% default) plus a
+  single flat absolute tolerance for `ppl_delta` (0.05 default), not
+  per-point confidence intervals** derived from each format's own stddev —
+  a reasonable v1 given llama-bench's own averages already carry real
+  noise, but not as statistically rigorous as CI-aware dominance would be.
+- **Model-identity validation is `model_n_params` (exact) plus a normalized
+  `model_type` prefix (soft), not full GGUF-metadata comparison** —
+  catches the concrete failure mode of two different models sharing a
+  parameter count, but doesn't parse tokenizer hash or tensor shapes; see
+  [ROADMAP.md](ROADMAP.md#explicitly-deferred-stretch-goal-not-v10-scope).
 - **No published package.** No PyPI publish, no GitHub Release with a
   downloadable wheel attached — install from source.
 

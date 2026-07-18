@@ -17,31 +17,74 @@ import pandas as pd
 # a stddev alongside every average precisely because run-to-run noise is
 # real, and treating every tiny difference as exact would let Pareto
 # membership flip on measurement noise rather than a material improvement.
+#
+# This is a *relative* tolerance, which works for objectives like file size
+# or throughput where "material" scales with the value being compared. It
+# breaks down for an objective measured as a delta from a zero baseline
+# (e.g. ppl_delta, which is exactly 0 for whatever format was chosen as the
+# quality reference): a relative band around 0 is 0, so the "2% tolerance"
+# advertised for that column silently evaporates for the one row that
+# needs it most. See absolute_tolerance below for the fix.
 DEFAULT_EPSILON = 0.02
 
+# ppl_delta is naturally centered on a zero baseline (see DEFAULT_EPSILON's
+# note), so it needs an absolute tolerance band, not a relative one -- a
+# difference of a few hundredths of a perplexity point is well within what
+# llama-perplexity's own reported +/- uncertainty typically shows for a
+# ~150KB evaluation window at these thread counts. This is a default, not a
+# law: pass a different value (or None to disable) via rank_table's
+# absolute_tolerance if your own dataset/uncertainty differs.
+DEFAULT_PPL_ABSOLUTE_TOLERANCE = 0.05
 
-def _dominates(b: dict, a: dict, minimize: list[str], maximize: list[str], epsilon: float = DEFAULT_EPSILON) -> bool:
+
+def _tolerance_band(key: str, a_value: float, epsilon: float | dict[str, float], absolute_tolerance: dict[str, float] | None) -> float:
+    """Returns the +/- band around a_value within which a difference on
+    `key` doesn't count as material. Uses an absolute band if one is
+    configured for this key (see DEFAULT_PPL_ABSOLUTE_TOLERANCE's note),
+    otherwise a relative band (epsilon can be one float applied to every
+    key, or a dict of per-key overrides).
+    """
+    if absolute_tolerance and key in absolute_tolerance and absolute_tolerance[key] is not None:
+        return absolute_tolerance[key]
+    key_epsilon = epsilon.get(key, DEFAULT_EPSILON) if isinstance(epsilon, dict) else epsilon
+    return abs(a_value) * key_epsilon
+
+
+def _dominates(
+    b: dict,
+    a: dict,
+    minimize: list[str],
+    maximize: list[str],
+    epsilon: float | dict[str, float] = DEFAULT_EPSILON,
+    absolute_tolerance: dict[str, float] | None = None,
+) -> bool:
     """True if point b dominates point a: at least as good as a in every
-    objective (within `epsilon` relative tolerance), and *materially*
-    better (beyond that tolerance) in at least one. epsilon=0 recovers
-    exact dominance.
+    objective (within a tolerance band around a's value), and *materially*
+    better (beyond that band) in at least one. epsilon=0 and no absolute
+    tolerances recovers exact dominance.
     """
     strictly_better = False
     for key in minimize:
-        if b[key] > a[key] * (1 + epsilon):
+        band = _tolerance_band(key, a[key], epsilon, absolute_tolerance)
+        if b[key] > a[key] + band:
             return False
-        if b[key] < a[key] * (1 - epsilon):
+        if b[key] < a[key] - band:
             strictly_better = True
     for key in maximize:
-        if b[key] < a[key] * (1 - epsilon):
+        band = _tolerance_band(key, a[key], epsilon, absolute_tolerance)
+        if b[key] < a[key] - band:
             return False
-        if b[key] > a[key] * (1 + epsilon):
+        if b[key] > a[key] + band:
             strictly_better = True
     return strictly_better
 
 
 def pareto_optimal_flags(
-    rows: list[dict], minimize: list[str], maximize: list[str], epsilon: float = DEFAULT_EPSILON
+    rows: list[dict],
+    minimize: list[str],
+    maximize: list[str],
+    epsilon: float | dict[str, float] = DEFAULT_EPSILON,
+    absolute_tolerance: dict[str, float] | None = None,
 ) -> list[bool]:
     """Returns, for each row, whether it is non-dominated (Pareto-optimal)
     with respect to the given objectives. minimize objectives (e.g. file
@@ -50,19 +93,35 @@ def pareto_optimal_flags(
     """
     flags = []
     for i, a in enumerate(rows):
-        dominated = any(_dominates(b, a, minimize, maximize, epsilon) for j, b in enumerate(rows) if j != i)
+        dominated = any(
+            _dominates(b, a, minimize, maximize, epsilon, absolute_tolerance)
+            for j, b in enumerate(rows)
+            if j != i
+        )
         flags.append(not dominated)
     return flags
 
 
 def rank_table(
-    rows: list[dict], minimize: list[str], maximize: list[str], epsilon: float = DEFAULT_EPSILON
+    rows: list[dict],
+    minimize: list[str],
+    maximize: list[str],
+    epsilon: float | dict[str, float] = DEFAULT_EPSILON,
+    absolute_tolerance: dict[str, float] | None = None,
 ) -> pd.DataFrame:
     """Builds a ranked comparison table with a `pareto_optimal` column,
     Pareto-optimal rows sorted first.
+
+    absolute_tolerance, if given, maps column name -> a fixed +/- band used
+    instead of a relative one for that column (see
+    DEFAULT_PPL_ABSOLUTE_TOLERANCE). Callers that include "ppl_delta" in
+    minimize should normally pass {"ppl_delta": DEFAULT_PPL_ABSOLUTE_TOLERANCE}
+    or their own dataset-appropriate value.
     """
+    if not minimize and not maximize:
+        raise ValueError("rank_table needs at least one minimize or maximize column")
     df = pd.DataFrame(rows)
-    df["pareto_optimal"] = pareto_optimal_flags(rows, minimize, maximize, epsilon)
+    df["pareto_optimal"] = pareto_optimal_flags(rows, minimize, maximize, epsilon, absolute_tolerance)
     sort_key = maximize[0] if maximize else minimize[0]
     ascending = sort_key in minimize
     df = df.sort_values(

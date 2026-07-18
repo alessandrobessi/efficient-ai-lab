@@ -1,10 +1,84 @@
 # quantscope — Development Roadmap
 
-**Status: M0-M5 implemented — `quantscope/v0.2.0` tagged.** The architecture
+**Status: M0-M6 implemented — `quantscope/v0.2.1` tagged.** The architecture
 below reflects what was actually built (see `quantscope/`), not just a plan.
 One deliberate deviation from the original plan remains: `pyproject.toml`
 builds an installable package (`[build-system]`/hatchling, `project.scripts`)
 rather than using `[tool.uv] package = false`.
+
+## v0.2.1: fixes from a second external review
+
+A second external review — this time of v0.2.0's real benchmark, Pareto
+ranking, and manifest — found seven more gaps, all addressed:
+
+1. **Benchmark order was confounded.** Each format was benchmarked then
+   perplexity-evaluated immediately, then the next format — sequential, not
+   randomized, so thermal throttling/background load/OS caching drift
+   correlated with format identity instead of being spread evenly across all
+   formats. Fixed: `sweep()` now runs `--rounds` (default 10) independently
+   shuffled rounds, one `llama-bench -r 1` call per (round, format) pair,
+   aggregating mean/stddev *across rounds* for real between-round
+   uncertainty instead of within-round repetition noise; `--seed` makes the
+   shuffle reproducible. Perplexity (deterministic, much slower) stays a
+   separate phase, run once per format after all rounds finish, not repeated
+   per round.
+2. **Epsilon-dominance used one relative tolerance for everything**,
+   including `ppl_delta` — meaningless around the baseline format's own
+   entry, where `ppl_delta = 0` and a relative tolerance around zero is
+   zero, so the advertised noise protection silently didn't apply to the one
+   row that needed it most. Fixed: `_tolerance_band()` supports a fixed
+   *absolute* tolerance per objective (`--ppl-absolute-tolerance`, default
+   0.05) layered on top of the existing relative epsilon; `bench`, `report`,
+   and `recommend` all thread it through.
+3. **`_validate_same_model` only checked `model_n_params`** — necessary but
+   not sufficient, since a base model and its instruct fine-tune (or two
+   unrelated architectures) can share a parameter count. Fixed: added a soft
+   secondary check on a normalized `model_type` prefix (architecture + size,
+   with the quant-format suffix stripped), raising `ModelIdentityError` on
+   mismatch. Full GGUF-metadata validation (tokenizer hash, tensor shapes)
+   is deferred — see "Explicitly deferred" below.
+4. **`run_llama_perplexity` never forced `-ngl 0`**, unlike
+   `run_llama_bench` — a Metal/CUDA-enabled build could silently evaluate
+   perplexity with GPU offload despite quantscope's "CPU is always forced"
+   claim. Fixed: perplexity now always passes `-ngl 0` too.
+5. **Perplexity's own uncertainty was discarded.** llama-perplexity reports
+   `Final estimate: PPL = X +/- Y`, but only `X` was kept. Fixed:
+   `run_llama_perplexity` returns `PerplexityResult(value, error)`;
+   `perplexity_error` is now a CSV column.
+6. **The manifest was missing key provenance** — `n_prompt`, `n_gen`,
+   `rounds`, the actual per-round visiting order, the perplexity dataset's
+   sha256, and the Pareto objectives/epsilon/tolerance used — and recorded
+   absolute machine-specific temp paths instead of basenames, plus a stale
+   `quantscope_version` left over from a prior release. Fixed:
+   `RunManifest` now records all of the above (`round_orders`,
+   `perplexity_dataset_sha256`, `pareto_minimize`/`pareto_maximize`/
+   `pareto_epsilon`/`pareto_ppl_absolute_tolerance`, etc.); `ModelEntry`
+   stores a basename, never an absolute path.
+7. **Two engineering nits.** `bench` hashed every GGUF file even when
+   `--output` wasn't given (wasted work on large files for a manifest that
+   was never going to be written); `report --csv` allowed zero
+   minimize/maximize columns, which crashed downstream instead of failing
+   clearly. Fixed: hashing is now gated on `--output` being present
+   (`--skip-hash` still works regardless); `rank_table` raises a clear
+   `ValueError` when both objective lists are empty.
+8. **The committed benchmark referenced a dataset file that didn't
+   exist.** The reproduce command named `wiki-like-sample.txt`, but it was
+   never actually committed. Fixed: re-ran the full benchmark end to end
+   with a real, committed dataset (a ~150KB public-domain excerpt from
+   Project Gutenberg's *Pride and Prejudice*) using the new randomized-round
+   architecture — see
+   [`benchmarks/2026-07-15-qwen2.5-0.5b-cpu/`](benchmarks/2026-07-15-qwen2.5-0.5b-cpu/)
+   for the updated methodology and numbers. The rerun surfaced a real,
+   unplanned finding: round-to-round variance for a 0.5B model under the
+   new one-process-per-round design is large (60-90% of the mean),
+   because launching a fresh `llama-bench` process every round pays a
+   model-load/cache-warmup cost that v0.2.0's single-invocation-with-
+   internal-repetition design didn't. v0.2.0's "Q8_0 is fastest" headline
+   didn't survive the rerun — the honest result is that this run can't
+   support a confident speed-ranking claim at all, documented as such
+   rather than replaced with an equally overconfident new headline. A
+   candidate fix (`llama-bench -r N` within each round, not just `-r 1`)
+   is noted below under "Explicitly deferred," not implemented in v0.2.1.
 
 ## v0.2.0: fixes from external review
 
@@ -215,6 +289,7 @@ shorthand name for it.
 | **M3** | Pareto report/plot polish; optional `--quality-eval` wrapping `llama-perplexity` | **Done** — Pareto ranking/plotting (`report.py`) now epsilon-tolerant; quality evaluation implemented and, as of v0.2.0, baseline-relative (`ppl_delta`/`ppl_ratio`) rather than a raw number |
 | **M4** | Docs, CI, `CONTRIBUTING.md`, tagged `v0.1.0` (`uv build`) | **Done** — `.github/workflows/quantscope-ci.yml`, `CONTRIBUTING.md`, a `--version` flag, git tag `quantscope/v0.1.0`. No PyPI publish and no GitHub Release with a downloadable wheel attached — deliberately held back pending the maintainer's own call on publishing publicly (same reasoning as `llmpace`'s M4) |
 | **M5** | v0.2.0: fixes from external review — force CPU, fix CPU-feature false positives, validate model identity, preserve provenance/uncertainty, real imatrix support, baseline-relative quality, `recommend`, rename `predict`, a real benchmark | **Done** — see [v0.2.0: fixes from external review](#v020-fixes-from-external-review) above |
+| **M6** | v0.2.1: fixes from a second external review — randomized multi-round benchmark architecture, absolute Pareto tolerance for zero baselines, stronger model-identity check, CPU-only enforcement on perplexity too, perplexity uncertainty, manifest completeness, engineering nits, a real benchmark rerun with a committed dataset | **Done** — see [v0.2.1: fixes from a second external review](#v021-fixes-from-a-second-external-review) above |
 
 ## Testing strategy
 
@@ -263,11 +338,29 @@ honestly rather than either overclaiming the mechanism or blocking the
 tool's real value (which is the sweep-and-rank workflow, not the
 mechanistic explanation) on resolving it.
 
-Not addressed in v0.2.0, left for a future pass if real need arises:
-per-point confidence-interval-aware dominance (v0.2.0 uses one flat
-epsilon, not each format's own stddev), a `--device auto` GPU-comparison
-mode (CPU-only is the deliberate v0.2.0 scope), and `recommend` computing a
-single weighted "best overall" score rather than filtering candidates.
+**Deep GGUF model-identity validation** (v0.2.1). `_validate_same_model`
+checks `model_n_params` (exact) and a normalized `model_type` prefix (soft)
+— together enough to catch the concrete failure mode the second review
+raised (a base model and its fine-tune sharing a parameter count), but
+still not a guarantee. A stronger future validator would parse GGUF
+metadata directly and compare tokenizer hash and per-tensor shapes, which
+needs a GGUF-binary-parsing dependency this project doesn't currently have
+(see `pyproject.toml`) and is a large-enough addition to warrant its own
+pass rather than folding it into a review-response cycle.
+
+Not addressed in v0.2.1, left for a future pass if real need arises:
+per-point confidence-interval-aware dominance (still one flat
+epsilon/absolute-tolerance band, not each format's own stddev), a
+`--device auto` GPU-comparison mode (CPU-only remains the deliberate
+scope), `recommend` computing a single weighted "best overall" score
+rather than filtering candidates, and reducing per-round measurement noise
+via `llama-bench -r N` *within* each shuffled round (not just `-r 1`) —
+the real benchmark rerun (see
+[v0.2.1's item 8](#v021-fixes-from-a-second-external-review)) found
+round-to-round variance large enough that this is now a concrete, known
+gap rather than a hypothetical one, but implementing it needs its own
+pass to decide the right N and re-validate the aggregation math, not a
+same-cycle fix.
 
 ## License
 

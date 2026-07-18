@@ -32,12 +32,17 @@ that matters most under load.
 
 ## [`quantscope/`](quantscope/) — GGUF quantization / CPU-kernel-fit profiler
 
-**[`quantscope/v0.2.0`](https://github.com/alessandrobessi/efficient-ai-lab/tree/quantscope/v0.2.0) tagged**
-— CI on every push, installable, CPU inference always forced (`-ngl 0`),
-all subcommands (`bench`, `estimate-size`, `quantize`, `report`,
-`recommend`, `formats`, `cpu-info`) work and are tested end-to-end. A real
-[8-format benchmark](quantscope/benchmarks/2026-07-15-qwen2.5-0.5b-cpu/)
-found an 8-bit format beating four smaller ones on speed.
+**[`quantscope/v0.2.1`](https://github.com/alessandrobessi/efficient-ai-lab/tree/quantscope/v0.2.1) tagged**
+— CI on every push, installable, CPU inference always forced (`-ngl 0`) on
+every llama.cpp invocation, all subcommands (`bench`, `estimate-size`,
+`quantize`, `report`, `recommend`, `formats`, `cpu-info`) work and are
+tested end-to-end. A real
+[8-format benchmark](quantscope/benchmarks/2026-07-15-qwen2.5-0.5b-cpu/),
+rerun with a randomized multi-round architecture (instead of a confounded
+sequential one), found round-to-round variance large enough on a small
+model that no single format's speed edge is well-supported by the data —
+an honest result the previous, order-confounded run's clean-looking
+numbers had been masking.
 
 [Week 4](../experiments/04-quantization/README.md) and
 [Week 6](../experiments/06-model-comparison/README.md) repeatedly found that
